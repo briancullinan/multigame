@@ -117,8 +117,8 @@ ZIP = zip -9
 
 QVM_CFLAGS := -DQ3_VM 
 QVM_LDFLAGS := -vq3 -r -m -v 
-QVM_CC ?= ../../../q3lcc/build-darwin-x86_64/q3lcc -v 
-QVM_LD ?= ../../../q3asm/bin/q3asm
+QVM_CC ?= ../../../q3lcc -v 
+QVM_LD ?= ../../../q3asm
 
 ifeq ($(PLATFORM),darwin)
 
