@@ -146,17 +146,14 @@ jobs:
           - arch: x86
             use_sdl: USE_SDL=0
             platform: linux
-            ext: so
-            copy_target: baseq3a/*
+            copy_target: /build/release-*/baseq3a/*.so
           - arch: x86_64
             use_sdl: USE_SDL=1
             platform: linux
-            ext: so
-            copy_target: baseq3a/*
+            copy_target: /build/release-*/baseq3a/*.so
           - arch: bytecode
             platform: qvms
-            ext: qvm
-            copy_target: baseq3a/vm/*
+            copy_target: /*.zip
             
     steps:
     - name: Install tools
@@ -189,7 +186,7 @@ jobs:
         make release -j 8 ARCH=${{ matrix.arch }} \
           PLATFORM=${{ matrix.platform }} V=1
         cd ../../
-        mv build/linux/build/release-*/${{ matrix.copy_target }}.${{ matrix.ext }} bin/
+        mv build/linux${{ matrix.copy_target }} bin/
 
     - uses: actions/upload-artifact@v2
       if: matrix.cc == 'gcc' && matrix.config == 'Release'
@@ -291,21 +288,22 @@ jobs:
 
       - name: Create binary archives
         run: |
-          7z a -r baseq3a-linux-x86.zip           ./linux-x86/*
-          7z a -r baseq3a-linux-x86_64.zip         ./linux-x86_64/*
-          7z a -r baseq3a-windows-mingw-x86.zip    ./windows-mingw-x86/*
-          7z a -r baseq3a-windows-mingw-x86_64.zip ./windows-mingw-x86_64/*
-          7z a -r baseq3a-windows-msvc-x86.zip     ./windows-msvc-x86/*
-          7z a -r baseq3a-windows-msvc-x86_64.zip  ./windows-msvc-x86_64/*
-          7z a -r baseq3a-windows-msvc-arm64.zip   ./windows-msvc-arm64/*
-          7z a -r baseq3a-macos-x86_64.zip         ./macos-x86_64/*
-          7z a -r baseq3a-all-x86_64.zip         ./macos-x86_64/*
-          7z a -r baseq3a-all-x86_64.zip         ./linux-x86_64/*
-          7z a -r baseq3a-all-x86_64.zip         ./windows-mingw-x86_64/*
-          7z a -r baseq3a-all-x86_64.zip         ./windows-msvc-x86_64/*
-          7z a -r baseq3a-all-x86_64.zip         ./windows-msvc-arm64/*
-          7z a -r baseq3a-all-x86_64.zip         ./qvms-bytecode/*
-          7z a -r baseq3a-qvms.zip              ./qvms-bytecode/*
+          7z a -r baseq3a-full-x86_64.zip         ./macos-x86_64/*
+          7z a -r baseq3a-full-x86_64.zip         ./linux-x86_64/*
+          7z a -r baseq3a-full-x86_64.zip         ./windows-mingw-x86_64/*
+          7z a -r baseq3a-full-x86_64.zip         ./windows-msvc-x86_64/*
+          7z a -r baseq3a-full-x86_64.zip         ./windows-msvc-arm64/*
+          7z a -r baseq3a-full-x86_64.zip         ./qvms-bytecode/*
+          cp      ./qvms-bytecode/*.zip           ./pak8a.pk3
+#         7z a -r baseq3a-qvms.zip              ./qvms-bytecode/*
+#         7z a -r baseq3a-linux-x86.zip           ./linux-x86/*
+#         7z a -r baseq3a-linux-x86_64.zip         ./linux-x86_64/*
+#         7z a -r baseq3a-windows-mingw-x86.zip    ./windows-mingw-x86/*
+#         7z a -r baseq3a-windows-mingw-x86_64.zip ./windows-mingw-x86_64/*
+#         7z a -r baseq3a-windows-msvc-x86.zip     ./windows-msvc-x86/*
+#         7z a -r baseq3a-windows-msvc-x86_64.zip  ./windows-msvc-x86_64/*
+#         7z a -r baseq3a-windows-msvc-arm64.zip   ./windows-msvc-arm64/*
+#         7z a -r baseq3a-macos-x86_64.zip         ./macos-x86_64/*
 #         7z a -r q3lcc-linux-aarch64.zip  ./linux-aarch64/*
 #         7z a -r q3lcc-linux-armv7.zip    ./linux-armv7/*
 

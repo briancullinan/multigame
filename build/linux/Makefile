@@ -113,7 +113,7 @@ LIB=lib
 INSTALL=install
 MKDIR=mkdir
 LD := $(CC)
-ZIP = zip -9
+ZIP = zip -9 -r
 
 QVM_CFLAGS := -DQ3_VM 
 QVM_LDFLAGS := -vq3 -r -m -v 
@@ -223,10 +223,12 @@ ifndef SHLIBNAME
 endif
 
 ifeq ($(PLATFORM),qvms)
-TARGETS += \
+TARGET_QVMS = \
   $(B)/$(MOD)/vm/cgame.qvm \
   $(B)/$(MOD)/vm/qagame.qvm \
   $(B)/$(MOD)/vm/ui.qvm
+
+TARGETS += $(TARGET_QVMS) pak8a.pk3
 else
 TARGETS += \
   $(B)/$(MOD)/cgame$(SHLIBNAME) \
@@ -597,6 +599,17 @@ clean2:
 
 distclean: clean
 	@rm -rf $(BUILD_DIR)
+
+
+pak8a.pk3: # $(TARGET_QVMS)
+	$(echo_cmd) "ZIPPING $<"
+	$(Q)cd $(B)/$(MOD) && \
+		$(ZIP) ../../../pak8a.pk3 vm/*.qvm && \
+		$(ZIP) -u ../../../pak8a.pk3 vm/*.map && \
+		$(ZIP) -u ../../../pak8a.pk3 vm/*.jts
+	$(Q)cd ../../assets && \
+		$(ZIP) -u ../build/linux/pak8a.pk3 ./*
+
 
 #############################################################################
 # DEPENDENCIES
