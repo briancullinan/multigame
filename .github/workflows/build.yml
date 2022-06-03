@@ -64,7 +64,7 @@ jobs:
         mkdir bin
         cd build/linux
         make release -j 8 ARCH=${{ matrix.arch }} CC=${{ matrix.cc }} \
-          DESTDIR=bin PLATFORM=mingw32
+          PLATFORM=mingw32
         cd ../../
         mv build/linux/build/release-mingw32-*/baseq3a/*.dll bin/
         #mv build/linux/build/release-mingw32-*/baseq3a/*.pdb bin/
@@ -147,13 +147,16 @@ jobs:
             use_sdl: USE_SDL=0
             platform: linux
             ext: so
+            copy_target: baseq3a/*
           - arch: x86_64
             use_sdl: USE_SDL=1
             platform: linux
             ext: so
+            copy_target: baseq3a/*
           - arch: bytecode
             platform: qvms
             ext: qvm
+            copy_target: baseq3a/vm/*
             
     steps:
     - name: Install tools
@@ -180,12 +183,13 @@ jobs:
     - name: Build
       run: |
         mkdir bin
+        mkdir bin/vm
         cd build/linux
         ls -la ../../../
-        make release -j 8 ARCH=${{ matrix.arch }} DESTDIR=bin \
+        make release -j 8 ARCH=${{ matrix.arch }} \
           PLATFORM=${{ matrix.platform }} V=1
         cd ../../
-        mv build/linux/build/release-*/*/vm/*.${{ matrix.ext }} build/linux/build/release-*/*/*.${{ matrix.ext }} bin/
+        mv build/linux/build/release-*/${{ matrix.copy_target }}.${{ matrix.ext }} bin/
 
     - uses: actions/upload-artifact@v2
       if: matrix.cc == 'gcc' && matrix.config == 'Release'
@@ -227,7 +231,7 @@ jobs:
           apt-get install -y make gcc g++
           apt-get -y install libcurl4-openssl-dev mesa-common-dev libxxf86dga-dev libxrandr-dev libxxf86vm-dev libasound-dev
           cd build/linux
-          make release -j 4 ARCH=${{ matrix.arch }} CC=${{ matrix.cc }} DESTDIR=bin 
+          make release -j 4 ARCH=${{ matrix.arch }} CC=${{ matrix.cc }}
           cd ../../
           mv build/linux/build/release-linux-arm64/baseq3a/*.so bin/
 
@@ -265,7 +269,7 @@ jobs:
       run: |
         mkdir bin
         cd build/linux
-        make release -j 4 CC=${{ matrix.cc }} DESTDIR=bin INSTALL=ginstall 
+        make release -j 4 CC=${{ matrix.cc }} INSTALL=ginstall 
         cd ../../
         mv build/linux/build/release-darwin-x86_64/baseq3a/*.dylib bin/
 
