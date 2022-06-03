@@ -601,7 +601,7 @@ distclean: clean
 	@rm -rf $(BUILD_DIR)
 
 
-pak8a.pk3: # $(TARGET_QVMS)
+pak8a.pk3: $(TARGET_QVMS)
 	$(echo_cmd) "ZIPPING $<"
 	$(Q)cd $(B)/$(MOD) && \
 		$(ZIP) ../../../pak8a.pk3 vm/*.qvm && \
