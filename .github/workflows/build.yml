@@ -185,7 +185,7 @@ jobs:
         make release -j 8 ARCH=${{ matrix.arch }} DESTDIR=bin \
           PLATFORM=${{ matrix.platform }} V=1
         cd ../../
-        mv build/linux/build/release-*/**/*.${{ matrix.ext }} bin/
+        mv build/linux/build/release-*/*/vm/*.${{ matrix.ext }} build/linux/build/release-*/*/*.${{ matrix.ext }} bin/
 
     - uses: actions/upload-artifact@v2
       if: matrix.cc == 'gcc' && matrix.config == 'Release'
