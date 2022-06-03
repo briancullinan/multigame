@@ -4,6 +4,7 @@
 # GNU Make required
 #
 
+LAST_MAKEFILE :=  $(lastword $(MAKEFILE_LIST))
 COMPILE_PLATFORM=$(shell uname | sed -e 's/_.*//' | tr '[:upper:]' '[:lower:]' | sed -e 's/\//_/g')
 COMPILE_ARCH=$(shell uname -m | sed -e 's/i.86/x86/' | sed -e 's/^arm.*/arm/')
 
@@ -98,6 +99,7 @@ BR=$(BUILD_DIR)/release-$(PLATFORM)-$(ARCH)
 QADIR=$(MOUNT_DIR)/game
 CGDIR=$(MOUNT_DIR)/cgame
 UIDIR=$(MOUNT_DIR)/q3_ui
+SYSCALL=$(MOUNT_DIR)/../build/win32-qvm
 
 bin_path=$(shell which $(1) 2> /dev/null)
 
@@ -110,6 +112,27 @@ LIB=lib
 
 INSTALL=install
 MKDIR=mkdir
+LD := $(CC)
+ZIP = zip -9
+
+QVM_CFLAGS := -DQ3_VM 
+QVM_LDFLAGS := -vq3 -r -m -v 
+QVM_CC ?= ../../../q3lcc/build-darwin-x86_64/q3lcc -v 
+QVM_LD ?= ../../../q3asm/bin/q3asm
+
+ifeq ($(PLATFORM),darwin)
+
+  BASE_CFLAGS = -Wall -fno-strict-aliasing -Wimplicit -Wstrict-prototypes -pipe
+
+  OPTIMIZE = -O2 -fvisibility=hidden -fomit-frame-pointer # -ffast-math
+
+  SHLIBEXT         := dylib
+  SHLIBCFLAGS      := -fPIC -fvisibility=hidden -fno-common
+  SHLIBLDFLAGS     := -dynamiclib -rdynamic -shared $(LDFLAGS)
+
+  LIBS= -lm
+
+endif
 
 ifeq ($(PLATFORM),linux)
 
@@ -199,10 +222,17 @@ ifndef SHLIBNAME
   SHLIBNAME=$(ARCH).$(SHLIBEXT)
 endif
 
+ifeq ($(PLATFORM),qvms)
+TARGETS += \
+  $(B)/$(MOD)/vm/cgame.qvm \
+  $(B)/$(MOD)/vm/qagame.qvm \
+  $(B)/$(MOD)/vm/ui.qvm
+else
 TARGETS += \
   $(B)/$(MOD)/cgame$(SHLIBNAME) \
   $(B)/$(MOD)/qagame$(SHLIBNAME) \
   $(B)/$(MOD)/ui$(SHLIBNAME)
+endif
 
 ifeq ("$(CC)", $(findstring "$(CC)", "clang" "clang++"))
   BASE_CFLAGS += -Qunused-arguments
@@ -241,6 +271,21 @@ $(echo_cmd) "SHLIB_CC $<"
 $(Q)$(CC) $(MOD_CFLAGS) $(SHLIBCFLAGS) $(CFLAGS) $(OPTIMIZE) -o $@ -c $<
 endef
 
+define DO_GAME_LCC
+$(echo_cmd) "GAME_LCC $<"
+$(Q)$(QVM_CC) $(QVM_CFLAGS) -DQAGAME -o $@ -c $<
+endef
+
+define DO_CGAME_LCC
+$(echo_cmd) "CGAME_LCC $<"
+$(Q)$(QVM_CC) $(QVM_CFLAGS) -DCGAME -o $@ -c $<
+endef
+
+define DO_UI_LCC
+$(echo_cmd) "UI_LCC $<"
+$(Q)$(QVM_CC) $(QVM_CFLAGS) -DUI -o $@ -c $<
+endef
+
 define DO_GAME_CC
 $(echo_cmd) "GAME_CC $<"
 $(Q)$(CC) $(MOD_CFLAGS) -DQAGAME $(SHLIBCFLAGS) $(CFLAGS) $(OPTIMIZE) -o $@ -c $<
@@ -264,11 +309,11 @@ default: release
 all: debug release
 
 debug:
-	@$(MAKE) targets B=$(BD) CFLAGS="$(CFLAGS) $(BASE_CFLAGS)" \
+	@$(MAKE)  targets B=$(BD) CFLAGS="$(CFLAGS) $(BASE_CFLAGS)" \
 	  OPTIMIZE="$(DEBUG_CFLAGS)" V=$(V)
 
 release:
-	@$(MAKE) targets B=$(BR) CFLAGS="$(CFLAGS) $(BASE_CFLAGS)" \
+	@$(MAKE)  targets B=$(BR) CFLAGS="$(CFLAGS) $(BASE_CFLAGS)" \
 	  OPTIMIZE="-DNDEBUG $(OPTIMIZE)" V=$(V)
 
 # Create the build directories, check libraries and print out
@@ -312,7 +357,7 @@ targets: makedirs
 	@echo ""
 
 ifneq ($(TARGETS),)
-	@$(MAKE) $(TARGETS) V=$(V)
+	@$(MAKE)  $(TARGETS) V=$(V)
 endif
 
 makedirs:
@@ -323,6 +368,9 @@ makedirs:
 	@if [ ! -d $(B)/$(MOD)/game ];then $(MKDIR) $(B)/$(MOD)/game;fi
 	@if [ ! -d $(B)/$(MOD)/ui ];then $(MKDIR) $(B)/$(MOD)/ui;fi
 	@if [ ! -d $(B)/$(MOD)/vm ];then $(MKDIR) $(B)/$(MOD)/vm;fi
+	@if [ ! -d $(B)/$(MOD)/vm/cgame ];then $(MKDIR) $(B)/$(MOD)/vm/cgame;fi
+	@if [ ! -d $(B)/$(MOD)/vm/game ];then $(MKDIR) $(B)/$(MOD)/vm/game;fi
+	@if [ ! -d $(B)/$(MOD)/vm/ui ];then $(MKDIR) $(B)/$(MOD)/vm/ui;fi
 
 #############################################################################
 ## BASEQ3 CGAME
@@ -353,10 +401,15 @@ CGOBJ_ = \
   $(B)/$(MOD)/cgame/cg_view.o \
   $(B)/$(MOD)/cgame/cg_weapons.o \
   \
-  $(B)/$(MOD)/game/q_math.o \
-  $(B)/$(MOD)/game/q_shared.o
+  $(B)/$(MOD)/cgame/q_math.o \
+  $(B)/$(MOD)/cgame/q_shared.o
 
-CGOBJ = $(CGOBJ_) $(B)/$(MOD)/cgame/cg_syscalls.o
+CGOBJ   = $(CGOBJ_) $(B)/$(MOD)/cgame/cg_syscalls.o
+CGASM   = $(subst /cgame/,/vm/cgame/,$(CGOBJ_:.o=.asm)) $(CGDIR)/cg_syscalls.asm
+
+$(B)/$(MOD)/vm/cgame.qvm: $(CGASM)
+	$(echo_cmd) "LD $@"
+	$(Q)$(QVM_LD) $(QVM_LDFLAGS) -o $@ $(CGASM)
 
 $(B)/$(MOD)/cgame$(SHLIBNAME): $(CGOBJ)
 	$(echo_cmd) "LD $@"
@@ -404,7 +457,12 @@ QAOBJ_ = \
   $(B)/$(MOD)/game/q_math.o \
   $(B)/$(MOD)/game/q_shared.o
 
-QAOBJ = $(QAOBJ_) $(B)/$(MOD)/game/g_syscalls.o
+QAOBJ   = $(QAOBJ_) $(B)/$(MOD)/game/g_syscalls.o
+QAASM   = $(subst /game/,/vm/game/,$(QAOBJ_:.o=.asm)) $(QADIR)/g_syscalls.asm
+
+$(B)/$(MOD)/vm/qagame.qvm: $(QAASM)
+	$(echo_cmd) "LD $@"
+	$(Q)$(QVM_LD) $(QVM_LDFLAGS) -o $@ $(QAASM)
 
 $(B)/$(MOD)/qagame$(SHLIBNAME): $(QAOBJ)
 	$(echo_cmd) "LD $@"
@@ -457,10 +515,15 @@ UIOBJ_ = \
   $(B)/$(MOD)/ui/ui_teamorders.o \
   $(B)/$(MOD)/ui/ui_video.o \
   \
-  $(B)/$(MOD)/game/q_math.o \
-  $(B)/$(MOD)/game/q_shared.o
+  $(B)/$(MOD)/ui/q_math.o \
+  $(B)/$(MOD)/ui/q_shared.o
 
-UIOBJ = $(UIOBJ_) $(B)/$(MOD)/ui/ui_syscalls.o
+UIOBJ   = $(UIOBJ_) $(B)/$(MOD)/ui/ui_syscalls.o
+UIASM   = $(subst /ui/,/vm/ui/,$(UIOBJ_:.o=.asm)) $(UIDIR)/ui_syscalls.asm
+
+$(B)/$(MOD)/vm/ui.qvm: $(UIASM)
+	$(echo_cmd) "LD $@"
+	$(Q)$(QVM_LD) $(QVM_LDFLAGS) -o $@ $(UIASM)
 
 $(B)/$(MOD)/ui$(SHLIBNAME): $(UIOBJ)
 	$(echo_cmd) "LD $@"
@@ -469,6 +532,28 @@ $(B)/$(MOD)/ui$(SHLIBNAME): $(UIOBJ)
 #############################################################################
 ## GAME MODULE RULES
 #############################################################################
+
+$(B)/$(MOD)/vm/cgame/bg_%.asm: $(QADIR)/bg_%.c
+	$(DO_CGAME_LCC)
+
+$(B)/$(MOD)/vm/cgame/q_%.asm: $(QADIR)/q_%.c
+	$(DO_CGAME_LCC)
+
+$(B)/$(MOD)/vm/cgame/%.asm: $(CGDIR)/%.c
+	$(DO_CGAME_LCC)
+
+$(B)/$(MOD)/vm/game/%.asm: $(QADIR)/%.c
+	$(DO_GAME_LCC)
+
+$(B)/$(MOD)/vm/ui/bg_%.asm: $(QADIR)/bg_%.c
+	$(DO_UI_LCC)
+
+$(B)/$(MOD)/vm/ui/q_%.asm: $(QADIR)/q_%.c
+	$(DO_UI_LCC)
+
+$(B)/$(MOD)/vm/ui/%.asm: $(UIDIR)/%.c
+	$(DO_UI_LCC)
+
 
 $(B)/$(MOD)/cgame/bg_%.o: $(QADIR)/bg_%.c
 	$(DO_CGAME_CC)
@@ -483,6 +568,9 @@ $(B)/$(MOD)/game/%.o: $(QADIR)/%.c
 	$(DO_GAME_CC)
 
 $(B)/$(MOD)/ui/bg_%.o: $(QADIR)/bg_%.c
+	$(DO_UI_CC)
+
+$(B)/$(MOD)/ui/q_%.o: $(QADIR)/q_%.c
 	$(DO_UI_CC)
 
 $(B)/$(MOD)/ui/%.o: $(UIDIR)/%.c
