@@ -316,6 +316,7 @@ jobs:
           title: Latest Build
           files: |
             *.zip
+            *.pk3
 
   update-release:
     if: ${{ github.event_name == 'release' }}
