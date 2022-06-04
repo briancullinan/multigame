@@ -118,6 +118,7 @@ MainMenu_Cache
 ===============
 */
 void MainMenu_Cache( void ) {
+	Menu_Cache();
 	s_main.bannerModel = trap_R_RegisterModel( MAIN_BANNER_MODEL );
 }
 
@@ -143,6 +144,7 @@ static void Main_MenuDraw( void ) {
 	float			adjust;
 	float			x, y, w, h;
 	vec4_t			color = {0.5, 0, 0, 1};
+	//int amount;
 
 	// setup the refdef
 
@@ -266,9 +268,10 @@ void UI_MainMenu( void ) {
 	memset( &s_main, 0 ,sizeof(mainmenu_t) );
 	memset( &s_errorMessage, 0 ,sizeof(errorMessage_t) );
 
+
 	// com_errorMessage would need that too
 	MainMenu_Cache();
-	
+
 	trap_Cvar_VariableStringBuffer( "com_errorMessage", s_errorMessage.errorMessage, sizeof(s_errorMessage.errorMessage) );
 	if ( s_errorMessage.errorMessage[0] )
 	{	
@@ -289,6 +292,7 @@ void UI_MainMenu( void ) {
 	s_main.menu.fullscreen = qtrue;
 	s_main.menu.wrapAround = qtrue;
 	s_main.menu.showlogo = qtrue;
+	s_main.menu.init = MainMenu_Cache;
 
 	y = 134;
 	s_main.singleplayer.generic.type		= MTYPE_PTEXT;

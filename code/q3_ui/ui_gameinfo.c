@@ -22,10 +22,15 @@ static char		*ui_arenaInfos[MAX_ARENAS];
 static int		ui_numSinglePlayerArenas;
 static int		ui_numSpecialSinglePlayerArenas;
 
+#ifndef MISSIONPACK
 static char		memoryPool[POOLSIZE];
 static int		allocPoint, outOfMemory;
+#else
+extern int		allocPoint, outOfMemory;
+#endif
 
 
+#ifndef MISSIONPACK
 /*
 ===============
 UI_Alloc
@@ -46,6 +51,7 @@ void *UI_Alloc( int size ) {
 	return p;
 }
 
+
 /*
 ===============
 UI_InitMemory
@@ -55,6 +61,11 @@ void UI_InitMemory( void ) {
 	allocPoint = 0;
 	outOfMemory = qfalse;
 }
+#else
+void *UI_Alloc( int size );
+void UI_InitMemory( void );
+#endif
+
 
 /*
 ===============
@@ -112,6 +123,7 @@ int UI_ParseInfos( char *buf, int max, char *infos[] ) {
 	return count;
 }
 
+
 /*
 ===============
 UI_LoadArenasFromFile
@@ -146,7 +158,7 @@ static void UI_LoadArenasFromFile( const char *filename ) {
 UI_LoadArenas
 ===============
 */
-static void UI_LoadArenas( void ) {
+void UI_LoadArenas( void ) {
 	int			numdirs;
 	vmCvar_t	arenasFile;
 	char		filename[128];
@@ -243,6 +255,7 @@ static void UI_LoadArenas( void ) {
 	}
 }
 
+
 /*
 ===============
 UI_GetArenaInfoByNumber
@@ -338,7 +351,7 @@ static void UI_LoadBotsFromFile( const char *filename ) {
 UI_LoadBots
 ===============
 */
-static void UI_LoadBots( void ) {
+void UI_LoadBots( void ) {
 	vmCvar_t	botsFile;
 	int			numdirs;
 	char		filename[128];

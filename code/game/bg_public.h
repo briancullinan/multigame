@@ -14,7 +14,7 @@
 #define	HEALTH_SOFT_LIMIT	100
 #define	AMMO_HARD_LIMIT		200
 
-#define	MAX_ITEMS			256
+#define MAX_ITEMS         256
 
 #define	RANK_TIED_FLAG		0x4000
 
@@ -95,6 +95,18 @@ typedef enum {
 	GT_OBELISK,
 	GT_HARVESTER,
 #endif
+
+
+//-- custom game types, there will be a variable in 
+#ifdef USE_GAME_OPENARENA
+  GT_ELIMINATION,			// team elimination (custom)
+  GT_CTF_ELIMINATION,		// ctf elimination
+  GT_LMS,				// Last man standing
+  GT_DOUBLE_D,			// Double Domination
+  GT_DOMINATION,			// Standard domination 12
+  GT_POSSESSION,
+#endif
+
 	GT_MAX_GAME_TYPE
 } gametype_t;
 
@@ -118,7 +130,10 @@ typedef enum {
 	PM_DEAD,		// no acceleration or turning, but free falling
 	PM_FREEZE,		// stuck in place with no control
 	PM_INTERMISSION,	// no movement or status bar
-	PM_SPINTERMISSION	// no movement or status bar
+	PM_SPINTERMISSION,	// no movement or status bar
+#if defined(USE_GAME_FREEZETAG) || defined(USE_REFEREE_CMDS)
+  PM_FROZEN,
+#endif
 } pmtype_t;
 
 typedef enum {
@@ -181,7 +196,7 @@ typedef struct {
 
 // if a full pmove isn't done on the client, you can just update the angles
 void PM_UpdateViewAngles( playerState_t *ps, const usercmd_t *cmd );
-void Pmove (pmove_t *pmove);
+void Pmove (pmove_t *pmove, int *items, vec3_t *portals, vec3_t *destinations, vec3_t *portalsAngles, vec3_t *destinationsAngles);
 
 //===================================================================================
 
@@ -227,31 +242,32 @@ typedef enum {
 
 
 // entityState_t->eFlags
-#define	EF_DEAD				0x00000001		// don't draw a foe marker over players with EF_DEAD
+#define	EF_DEAD             0x00000001		// don't draw a foe marker over players with EF_DEAD
+//#ifdef MISSIONPACK
+#define EF_TICKING          0x00000002		// used to make players play the prox mine ticking sound
+//#endif
+#define	EF_TELEPORT_BIT     0x00000004		// toggled every time the origin abruptly changes
+#define	EF_AWARD_EXCELLENT  0x00000008		// draw an excellent sprite
+#define EF_PLAYER_EVENT     0x00000010
+#define	EF_BOUNCE           0x00000010		// for missiles
+#define	EF_BOUNCE_HALF      0x00000020		// for missiles
+#define	EF_AWARD_GAUNTLET   0x00000040		// draw a gauntlet sprite
+#define	EF_NODRAW           0x00000080		// may have an event, but no model (unspawned items)
+#define	EF_FIRING           0x00000100		// for lightning gun
 #ifdef MISSIONPACK
-#define EF_TICKING			0x00000002		// used to make players play the prox mine ticking sound
+#define	EF_KAMIKAZE         0x00000200
 #endif
-#define	EF_TELEPORT_BIT		0x00000004		// toggled every time the origin abruptly changes
-#define	EF_AWARD_EXCELLENT	0x00000008		// draw an excellent sprite
-#define EF_PLAYER_EVENT		0x00000010
-#define	EF_BOUNCE			0x00000010		// for missiles
-#define	EF_BOUNCE_HALF		0x00000020		// for missiles
-#define	EF_AWARD_GAUNTLET	0x00000040		// draw a gauntlet sprite
-#define	EF_NODRAW			0x00000080		// may have an event, but no model (unspawned items)
-#define	EF_FIRING			0x00000100		// for lightning gun
-#ifdef MISSIONPACK
-#define	EF_KAMIKAZE			0x00000200
-#endif
-#define	EF_MOVER_STOP		0x00000400		// will push otherwise
-#define EF_AWARD_CAP		0x00000800		// draw the capture sprite
-#define	EF_TALK				0x00001000		// draw a talk balloon
-#define	EF_CONNECTION		0x00002000		// draw a connection trouble sprite
-#define	EF_VOTED			0x00004000		// already cast a vote
+#define	EF_MOVER_STOP       0x00000400		// will push otherwise
+#define EF_AWARD_CAP        0x00000800		// draw the capture sprite
+#define	EF_TALK             0x00001000		// draw a talk balloon
+#define	EF_CONNECTION       0x00002000		// draw a connection trouble sprite
+#define	EF_VOTED            0x00004000		// already cast a vote
 #define	EF_AWARD_IMPRESSIVE	0x00008000		// draw an impressive sprite
-#define	EF_AWARD_DEFEND		0x00010000		// draw a defend sprite
-#define	EF_AWARD_ASSIST		0x00020000		// draw a assist sprite
-#define EF_AWARD_DENIED		0x00040000		// denied
-#define EF_TEAMVOTED		0x00080000		// already cast a team vote
+#define	EF_AWARD_DEFEND     0x00010000		// draw a defend sprite
+#define	EF_AWARD_ASSIST     0x00020000		// draw a assist sprite
+#define EF_AWARD_DENIED     0x00040000		// denied
+#define EF_TEAMVOTED        0x00080000		// already cast a team vote
+#define EF_TIMER            EF_TICKING		// 
 
 #define EF_PERSISTANT ( EF_CONNECTION | EF_VOTED | EF_TEAMVOTED )
 #define EF_AWARDS ( EF_AWARD_IMPRESSIVE | EF_AWARD_EXCELLENT | EF_AWARD_GAUNTLET | EF_AWARD_ASSIST | EF_AWARD_DEFEND | EF_AWARD_CAP )
@@ -278,6 +294,104 @@ typedef enum {
 	PW_DOUBLER,
 	PW_AMMOREGEN,
 	PW_INVULNERABILITY,
+
+#if defined(USE_GAME_FREEZETAG) || defined(USE_REFEREE_CMDS)
+  PW_FROZEN,
+#endif
+#ifdef USE_WEAPON_SPREAD
+  PW_SPREAD,  //Hal9000 spreadfire
+#endif
+
+#ifdef USE_RUNES
+  // 1 - 4
+  RUNE_STRENGTH,     // black
+  RUNE_REGEN,        // hell
+  RUNE_RESIST,       // elder
+  RUNE_HASTE,        // earth
+  
+  // 5 - 8
+  RUNE_ENVIRO,       // black
+  RUNE_FLIGHT,       // hell
+  RUNE_BERSERK,      // elder
+  RUNE_RECALL,       // earth
+  
+  // 9 - 12
+  RUNE_ELECTRIC,     // black
+  RUNE_CLOAK,        // hell
+  RUNE_DIVINE,       // elder
+  RUNE_DEATH,        // earth
+  
+  // 13 - 16
+  RUNE_HOLO,         // black
+  RUNE_ORB,          // hell
+  RUNE_BLINK,        // elder
+  RUNE_CAMO,         // earth
+  
+  // 17 - 20
+  RUNE_JUMP,         // black
+  RUNE_ACTION,       // hell
+  RUNE_VAMPIRE,      // elder
+  RUNE_SHIELD,       // earth
+  
+  // 21 - 24
+  RUNE_HEALTH,       // black
+  RUNE_RADIO,        // hell
+  RUNE_SWITCH,       // elder
+  RUNE_ICETRAP,      // earth
+  
+  // 25 - 28
+  RUNE_GRAVITY,      // black
+  RUNE_TELE,         // hell
+  RUNE_IMPACT,       // elder
+  RUNE_VENGEANCE,    // earth
+  
+  // 29 - 32
+  RUNE_SHUBHAT,      // black
+  RUNE_REPULSION,    // hell
+  RUNE_PHASING,      // elder
+  RUNE_SHAMBLER,     // earth
+  
+  // 33 - 36
+  RUNE_DUALRECALL,   // black
+  RUNE_WEIRDNESS,    // hell
+  RUNE_PHOENIX,      // elder
+  RUNE_SPIKECLOUD,   // earth
+  
+  // 37 - 40
+  RUNE_FIREWALK,     // black
+  RUNE_GRAPPLE,      // hell
+  RUNE_ATHLETIC,     // elder
+  RUNE_LUMBERJACK,   // earth
+  
+  // 41 - 44
+  RUNE_HOUNGAN,      // black
+  RUNE_PIERCING,     // hell
+  RUNE_PRESERVE,     // elder
+  RUNE_ZENMONK,      // earth
+  
+  // 45 - 48
+  RUNE_TORCH,        // black
+  RUNE_PACKRAT,      // hell
+  RUNE_ARMOR,        // elder
+  RUNE_QUAD,         // earth
+  
+  // 49 - 52
+  RUNE_JACK,         // black
+  RUNE_BLUEGOO,      // hell
+  RUNE_BLIZZARD,     // elder
+  RUNE_THOR,         // earth
+  
+  // 53 - 56
+  RUNE_SNIPER,       // black
+  RUNE_ANTIPACK,     // hell
+  RUNE_ANTITELE,     // elder
+  RUNE_CLUSTER,      // earth
+  
+  // 57 - 59
+  RUNE_TORNADO,      // black 
+  RUNE_REQUIEM,      // hell
+  RUNE_LITHIUM,      // elder
+#endif
 
 	PW_NUM_POWERUPS
 
@@ -308,13 +422,17 @@ typedef enum {
 	WP_RAILGUN,
 	WP_PLASMAGUN,
 	WP_BFG,
-	WP_GRAPPLING_HOOK,
 #ifdef MISSIONPACK
 	WP_NAILGUN,
 	WP_PROX_LAUNCHER,
 	WP_CHAINGUN,
 #endif
-
+#ifdef USE_FLAME_THROWER
+  WP_FLAME_THROWER,
+#endif
+#ifdef USE_GRAPPLE
+  WP_GRAPPLING_HOOK,
+#endif
 	WP_NUM_WEAPONS,
 	WP_PENDING = WP_NUM_WEAPONS, // used in ui_players.c
 	WP_MAX_WEAPONS = 16
@@ -368,13 +486,23 @@ typedef enum {
 	EV_WATER_CLEAR,	// head leaves
 
 	EV_ITEM_PICKUP,			// normal item pickups are predictable
+#ifdef USE_WEAPON_ORDER
+  EV_ITEM_PICKUP2,			// had items
+#endif
 	EV_GLOBAL_ITEM_PICKUP,	// powerup / team sounds are broadcast to everyone
+  EV_SINGLE_ITEM_PICKUP,
 
 	EV_NOAMMO,
 	EV_CHANGE_WEAPON,
 	EV_FIRE_WEAPON,
+#ifdef USE_ALT_FIRE
+  EV_ALTFIRE_WEAPON,
+  EV_ALTFIRE_BOTH,
+#endif
 
-	EV_USE_ITEM0,
+	EV_USE_ITEM,
+  /*
+  EV_USE_ITEM0,
 	EV_USE_ITEM1,
 	EV_USE_ITEM2,
 	EV_USE_ITEM3,
@@ -390,6 +518,7 @@ typedef enum {
 	EV_USE_ITEM13,
 	EV_USE_ITEM14,
 	EV_USE_ITEM15,
+  */
 
 	EV_ITEM_RESPAWN,
 	EV_ITEM_POP,
@@ -411,6 +540,9 @@ typedef enum {
 	EV_RAILTRAIL,
 	EV_SHOTGUN,
 	EV_BULLET,				// otherEntity is the shooter
+#ifdef USE_LV_DISCHARGE
+  EV_LV_DISCHARGE,
+#endif
 
 	EV_PAIN,
 	EV_DEATH1,
@@ -418,12 +550,22 @@ typedef enum {
 	EV_DEATH3,
 	EV_OBITUARY,
 
-	EV_POWERUP_QUAD,
-	EV_POWERUP_BATTLESUIT,
-	EV_POWERUP_REGEN,
+  EV_POWERUP,
+  EV_POWERUP1,  // duplexing powerup status
+  EV_POWERUP2,
+	//EV_POWERUP_QUAD,
+	//EV_POWERUP_BATTLESUIT,
+	//EV_POWERUP_REGEN,
 
 	EV_GIB_PLAYER,			// gib a previously living player
+#ifdef USE_HEADSHOTS
+  EV_GIB_PLAYER_HEADSHOT,
+  EV_BODY_NOHEAD,
+#endif
 	EV_SCOREPLUM,			// score plum
+#ifdef USE_DAMAGE_PLUMS
+  EV_DAMAGEPLUM,			// damage plum
+#endif
 
 //#ifdef MISSIONPACK
 	EV_PROXIMITY_MINE_STICK,
@@ -436,6 +578,11 @@ typedef enum {
 	EV_LIGHTNINGBOLT,		// lightning bolt bounced of invulnerability sphere
 //#endif
 
+#ifdef USE_SINGLEPLAYER // entity
+	EV_PLAYERSTOP,
+	EV_EARTHQUAKE,
+#endif
+
 	EV_DEBUG_LINE,
 	EV_STOPLOOPINGSOUND,
 	EV_TAUNT,
@@ -445,6 +592,12 @@ typedef enum {
 	EV_TAUNT_GETFLAG,
 	EV_TAUNT_GUARDBASE,
 	EV_TAUNT_PATROL,
+
+#if defined(USE_GAME_FREEZETAG) || defined(USE_REFEREE_CMDS)
+  EV_FROZEN,
+  EV_UNFROZEN,
+#endif
+
 	EV_MAX
 
 } entity_event_t;
@@ -548,6 +701,17 @@ typedef enum {
 	TEAM_NUM_TEAMS
 } team_t;
 
+
+#ifdef USE_ADVANCED_CLASS
+typedef enum {
+	PCLASS_BFG,
+	PCLASS_LIGHTNING,
+	PCLASS_RAILGUN,
+
+	PCLASS_NUM_CLASSES
+} pclass_t;
+#endif
+
 typedef enum {
 	TAG_NONE = 0,
 	TAG_DONTSPAWN,
@@ -570,6 +734,26 @@ typedef enum {
 	TEAMTASK_ESCORT,
 	TEAMTASK_CAMP
 } teamtask_t;
+
+#ifdef USE_LOCAL_DMG
+#define LOCATION_NONE		0x00000000
+
+// Height layers
+#define LOCATION_HEAD		0x00000001 // [F,B,L,R] Top of head
+#define LOCATION_FACE		0x00000002 // [F] Face [B,L,R] Head
+#define LOCATION_SHOULDER	0x00000004 // [L,R] Shoulder [F] Throat, [B] Neck
+#define LOCATION_CHEST		0x00000008 // [F] Chest [B] Back [L,R] Arm
+#define LOCATION_STOMACH	0x00000010 // [L,R] Sides [F] Stomach [B] Lower Back
+#define LOCATION_GROIN		0x00000020 // [F] Groin [B] Butt [L,R] Hip
+#define LOCATION_LEG		0x00000040 // [F,B,L,R] Legs
+#define LOCATION_FOOT		0x00000080 // [F,B,L,R] Bottom of Feet
+
+// Relative direction strike came from
+#define LOCATION_LEFT		0x00000100
+#define LOCATION_RIGHT		0x00000200
+#define LOCATION_FRONT		0x00000400
+#define LOCATION_BACK		0x00000800
+#endif
 
 // means of death
 typedef enum {
@@ -595,6 +779,12 @@ typedef enum {
 	MOD_FALLING,
 	MOD_SUICIDE,
 	MOD_TARGET_LASER,
+#ifdef USE_MODES_DEATH
+	MOD_SPECTATE,
+  MOD_VOID,
+  MOD_RING_OUT,
+  MOD_FROM_GRAVE,
+#endif
 	MOD_TRIGGER_HURT,
 #ifdef MISSIONPACK
 	MOD_NAIL,
@@ -602,6 +792,15 @@ typedef enum {
 	MOD_PROXIMITY_MINE,
 	MOD_KAMIKAZE,
 	MOD_JUICED,
+#endif
+#ifdef USE_LV_DISCHARGE
+  MOD_LV_DISCHARGE,
+#endif
+#ifdef USE_FLAME_THROWER
+  MOD_FLAME_THROWER,
+#endif
+#ifdef USE_HEADSHOTS
+  MOD_HEADSHOT,
 #endif
 	MOD_GRAPPLE
 } meansOfDeath_t;
@@ -623,6 +822,19 @@ typedef enum {
 	IT_PERSISTANT_POWERUP,
 	IT_TEAM
 } itemType_t;
+
+#define ITEM_WP_MIN IT_WEAPON
+#define ITEM_WP_MAX WP_NUM_WEAPONS
+#define ITEM_AM_MIN ITEM_WP_MAX
+#define ITEM_AM_MAX (ITEM_AM_MIN + WP_NUM_WEAPONS)
+#define ITEM_ARM_MIN ITEM_AM_MAX
+#define ITEM_ARM_MAX (ITEM_ARM_MIN + 3)
+#define ITEM_HTH_MIN ITEM_ARM_MAX
+#define ITEM_HTH_MAX (ITEM_HTH_MIN + 4)
+#define ITEM_PW_MIN ITEM_HTH_MAX
+#define ITEM_PW_MAX (ITEM_PW_MIN + PW_NUM_POWERUPS)
+#define ITEM_HI_MIN ITEM_PW_MAX
+#define ITEM_HI_MAX (ITEM_HI_MIN + HI_NUM_HOLDABLE)
 
 #define MAX_ITEM_MODELS 4
 
@@ -646,14 +858,19 @@ typedef struct gitem_s {
 // included in both the game dll and the client
 extern	gitem_t	bg_itemlist[];
 extern	int		bg_numItems;
+extern	gitem_t	bg_itemlist2[];
+extern	int		bg_numItems2;
 
 gitem_t	*BG_FindItem( const char *pickupName );
 gitem_t	*BG_FindItemForWeapon( weapon_t weapon );
 gitem_t	*BG_FindItemForPowerup( powerup_t pw );
+#ifdef USE_RUNES
+gitem_t	*BG_FindItemForRune( int r );
+#endif
 gitem_t	*BG_FindItemForHoldable( holdable_t pw );
 #define	ITEM_INDEX(x) ((x)-bg_itemlist)
 
-qboolean	BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const playerState_t *ps );
+qboolean	BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const playerState_t *ps, int *items );
 
 
 // g_dmflags->integer flags
@@ -688,6 +905,9 @@ typedef enum {
 	ET_INVISIBLE,
 	ET_GRAPPLE,				// grapple hooked on wall
 	ET_TEAM,
+#ifdef USE_LASER_SIGHT
+  ET_LASER,         // lasersight entity type
+#endif
 
 	ET_EVENTS				// any of the EV_* events can be added freestanding
 							// by setting eType to ET_EVENTS + eventNum
@@ -744,11 +964,14 @@ qboolean	BG_PlayerTouchesItem( playerState_t *ps, entityState_t *item, int atTim
 #define KAMI_SHOCKWAVE2_MAXRADIUS		704
 
 // custom functions
+#ifdef BUILD_GAME_STATIC
+intptr_t CG_Call( int command, int arg0, int arg1, int arg2 );
+intptr_t G_Call( int command, int arg0, int arg1, int arg2 );
+intptr_t UI_Call( int command, int arg0, int arg1, int arg2 );
+#endif
 
 int BG_sprintf( char *buf, const char *format, ... );
 int ED_vsprintf( char *buffer, const char *fmt, va_list argptr );
-
-char *Q_stristr( const char * str1, const char * str2 );
 
 char *strtok( char *strToken, const char *strDelimit );
 char *EncodedString( const char *str );
@@ -766,3 +989,15 @@ qboolean replace1( const char match, const char replace, char *str );
 qboolean  BigEndian( void );
 
 //#endif // __BG_PUBLIC_H
+#define MAX_MAP_SIZE 65536
+
+// Tracemap
+#ifdef CGAME
+void CG_GenerateTracemap( void );
+#endif // CGAMEDLL
+qboolean BG_LoadTraceMap( char *rawmapname, vec2_t world_mins, vec2_t world_maxs );
+float BG_GetSkyHeightAtPoint( vec3_t pos );
+float BG_GetSkyGroundHeightAtPoint( vec3_t pos );
+float BG_GetGroundHeightAtPoint( vec3_t pos );
+int BG_GetTracemapGroundFloor( void );
+int BG_GetTracemapGroundCeil( void );

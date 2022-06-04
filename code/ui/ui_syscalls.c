@@ -8,11 +8,15 @@
 #error "Do not use in VM build"
 #endif
 
-static int (QDECL *syscall)( int arg, ... ) = (int (QDECL *)( int, ...))-1;
+#ifndef BUILD_GAME_STATIC
+static dllSyscall_t syscall = (dllSyscall_t)-1;
 
-void dllEntry( int (QDECL *syscallptr)( int arg,... ) ) {
+DLLEXPORT void dllEntry( dllSyscall_t syscallptr ) {
 	syscall = syscallptr;
 }
+#else
+#define syscall UI_DllSyscall
+#endif
 
 int PASSFLOAT( float x ) {
 	float	floatTemp;
@@ -102,7 +106,7 @@ int trap_FS_GetFileList(  const char *path, const char *extension, char *listbuf
 	return syscall( UI_FS_GETFILELIST, path, extension, listbuf, bufsize );
 }
 
-int trap_FS_Seek( fileHandle_t f, long offset, int origin ) {
+int trap_FS_Seek( fileHandle_t f, long offset, fsOrigin_t origin ) {
 	return syscall( UI_FS_SEEK, f, offset, origin );
 }
 
@@ -246,11 +250,11 @@ int trap_LAN_ServerStatus( const char *serverAddress, char *serverStatus, int ma
 	return syscall( UI_LAN_SERVERSTATUS, serverAddress, serverStatus, maxLen );
 }
 
-void trap_LAN_SaveCachedServers() {
+void trap_LAN_SaveCachedServers( void ) {
 	syscall( UI_LAN_SAVECACHEDSERVERS );
 }
 
-void trap_LAN_LoadCachedServers() {
+void trap_LAN_LoadCachedServers( void ) {
 	syscall( UI_LAN_LOADCACHEDSERVERS );
 }
 

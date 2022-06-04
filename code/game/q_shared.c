@@ -1122,21 +1122,24 @@ Info_NextPair
 Used to itterate through all the key/value pairs in an info string
 ===================
 */
-const char *Info_NextPair( const char *s, char *key, char *value ) {
-	char *o;
+void Info_NextPair( const char **head, char *key, char *value ) {
+	char	*o;
+	const char	*s;
+
+	s = *head;
 
 	if ( *s == '\\' ) {
 		s++;
 	}
-
 	key[0] = '\0';
 	value[0] = '\0';
 
 	o = key;
 	while ( *s != '\\' ) {
-		if ( *s == '\0' ) {
+		if ( !*s ) {
 			*o = '\0';
-			return s;
+			*head = s;
+			return;
 		}
 		*o++ = *s++;
 	}
@@ -1144,12 +1147,12 @@ const char *Info_NextPair( const char *s, char *key, char *value ) {
 	s++;
 
 	o = value;
-	while ( *s != '\\' && *s != '\0' ) {
+	while ( *s != '\\' && *s ) {
 		*o++ = *s++;
 	}
 	*o = '\0';
 
-	return s;
+	*head = s;
 }
 
 

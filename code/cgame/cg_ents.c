@@ -142,12 +142,9 @@ CG_General
 */
 static void CG_General( const centity_t *cent ) {
 	refEntity_t			ent;
-	const entityState_t	*s1;
-
-	s1 = &cent->currentState;
 
 	// if set to invisible, skip
-	if (!s1->modelindex) {
+	if (!cent->currentState.modelindex) {
 		return;
 	}
 
@@ -155,17 +152,20 @@ static void CG_General( const centity_t *cent ) {
 
 	// set frame
 
-	ent.frame = s1->frame;
+	ent.frame = cent->currentState.frame;
 	ent.oldframe = ent.frame;
 	ent.backlerp = 0;
 
 	VectorCopy( cent->lerpOrigin, ent.origin);
 	VectorCopy( cent->lerpOrigin, ent.oldorigin);
 
-	ent.hModel = cgs.gameModels[s1->modelindex];
+	ent.hModel = cgs.gameModels[cent->currentState.modelindex];
+  if(!ent.hModel) {
+    return;
+  }
 
 	// player model
-	if (s1->number == cg.snap->ps.clientNum) {
+	if (cent->currentState.number == cg.snap->ps.clientNum) {
 		ent.renderfx |= RF_THIRD_PERSON;	// only draw from mirrors
 	}
 
@@ -199,6 +199,214 @@ static void CG_Speaker( centity_t *cent ) {
 	cent->miscTime = cg.time + cent->currentState.frame * 100 + cent->currentState.clientNum * 100 * crandom();
 }
 
+
+#ifdef USE_ITEM_TIMERS
+//#define USE_GUNNM_TIMER 1
+#define TIMER_SIZE 24
+/*
+==================
+CG_ItemTimer
+==================
+*/
+#ifdef USE_GUNNM_TIMER
+static void CG_ItemTimer( entityState_t	*es, const vec3_t origin ) {
+	refEntity_t		re;
+	vec3_t			angles;
+	float			c, len;
+	int				i, numsegs, totalsegs;
+	qhandle_t		lengthShader;
+	vec3_t			vec = { 0, 0, 1 };
+
+	int startTime, respawnTime;
+
+	startTime = es->time;
+	respawnTime = es->frame * 1000; // save bandwidth
+
+	if (!cg_itemTimer.integer) {
+		return;
+	}
+
+	VectorSubtract(cg.refdef.vieworg, origin, re.origin);
+	len = VectorLength(re.origin);
+	VectorNormalize(re.origin);
+
+	re.shaderRGBA[0] = re.shaderRGBA[1] = re.shaderRGBA[2] = 0xff; // where rgb are set in megamind's code?
+
+	// if the view would be "inside" the sprite, kill the sprite
+	// so it doesn't add too much overdraw
+	// TODO: count up and count down
+	// TODO: modifiable distance
+	if (len <= 20) {
+		//Com_Printf("Too close:\n");
+		return;
+	}
+	else if (len > 20 && len <= 300) {
+		re.shaderRGBA[3] = 0xff;
+	}
+	else if (len > 300 && len <= 500) {
+		float scale = (500 - len) / 200;
+		re.shaderRGBA[3] = 0xff * scale;
+	}
+	else {
+		//Com_Printf("Too far away:\n");
+		return; // too far away, don't add to scene
+	}
+
+	// Add powerup icon at center
+	re.reType = RT_SPRITE;
+	re.renderfx = /*RF_DEPTHHACK |*/ RF_FIRST_PERSON; // with RF_DEPTHHACK counter is visible behind wall
+
+	re.radius = 3;
+	VectorCopy(origin, re.origin);
+	re.origin[2] += (TIMER_SIZE * 0.5f);
+
+	VectorClear(angles);
+	AnglesToAxis(angles, re.axis);
+
+	re.rotation = 0;
+
+	re.customShader = cg_items[es->modelindex].icon_df;
+	trap_R_AddRefEntityToScene(&re);
+
+	// Choose the slice type
+	numsegs = respawnTime / 5000;
+	if (numsegs < 7) {
+		lengthShader = cgs.media.timerSlices[0];
+		totalsegs = 5;
+	}
+	else if (numsegs < 12) {
+		lengthShader = cgs.media.timerSlices[1];
+		totalsegs = 7;
+	}
+	else if (numsegs < 24) {
+		lengthShader = cgs.media.timerSlices[2];
+		totalsegs = 12;
+	}
+	else {
+		lengthShader = cgs.media.timerSlices[3];
+		totalsegs = 24;
+	}
+
+	c = ((startTime + respawnTime) - cg.time) * (1.0 / respawnTime);
+	re.radius = TIMER_SIZE * 0.5f;
+
+	// calculate segments
+	numsegs = ceil((1.0f - c) * totalsegs);
+	for (i = 0; i < numsegs; i++) {
+		re.rotation = 180.0f - (360.0f / (totalsegs * 2)) - (360.0f / totalsegs) * i;
+		VectorMA(origin, (float)(0.5 - 1) * TIMER_SIZE, vec, re.origin);
+		re.origin[2] += TIMER_SIZE;
+		re.customShader = lengthShader;
+
+		// fade the last segment in gradually
+		if (i == numsegs - 1) {
+
+			/* fadding
+			float fade = ((1.0f - c) - i * (1.0f / totalsegs) + 0.01f) / (1.0f / totalsegs);
+			if (fade > 1.0f) fade = 1.0f;
+			re.shaderRGBA[3] = (int)(fade * (float)re.shaderRGBA[3]);
+			*/
+
+			// Blinking
+			if ((cg.time >> 9) & 1) {
+				re.shaderRGBA[3] = 0xff;// (int)(fade * (float)re.shaderRGBA[3]);
+			}
+			else {
+				re.shaderRGBA[3] = 0x33;
+			}
+
+			/* TODO better blinking, something like this:
+			if (((startTime ) - cg.time) < POWERUP_BLINKS * POWERUP_BLINK_TIME) {
+				re.shaderRGBA[3] = 0xff;
+			}
+			else {
+				re.shaderRGBA[3] = 0x33;
+			}*/
+		}//last segment
+		trap_R_AddRefEntityToScene(&re);
+	}
+}
+#else
+
+void CG_ItemTimer(int client, const vec3_t origin, int startTime, int respawnTime) {
+  refEntity_t		re;
+  vec3_t			angles;
+  vec3_t		  vec = {0, 0, 1};
+	float		    c, len;
+  int         i, numsegs, totalsegs;
+  qhandle_t   lengthShader;
+
+  if(!cg_itemTimer.integer) {
+    return;
+  }
+
+  re.reType = RT_SPRITE;
+  re.renderfx = RF_DEPTHHACK | RF_FIRST_PERSON;
+  re.radius = 16;
+
+  VectorClear(angles);
+  AnglesToAxis( angles, re.axis );
+
+  c = ( (startTime + respawnTime) - cg.time ) * (1.0 / respawnTime);
+
+	re.radius = TIMER_SIZE / 2;
+
+  VectorSubtract( cg.refdef.vieworg, origin, re.origin );
+  len = VectorLength( re.origin );
+	VectorNormalize(re.origin);
+
+	// if the view would be "inside" the sprite, kill the sprite
+	// so it doesn't add too much overdraw
+  // TODO: count up and count down
+  // TODO: modifiable distance
+	if ( len <= 20 ) {
+    //Com_Printf("Too close:\n");
+		return;
+	} else if (len > 20 && len <= 300) {
+    re.shaderRGBA[3] = 0xff;
+  } else if (len > 300 && len <= 500) {
+    float scale = (500 - len)/200;
+    re.shaderRGBA[3] = 0xff * scale;
+  } else {
+    //Com_Printf("Too far away:\n");
+    return; // too far away, don't add to scene
+  }
+  
+  numsegs = respawnTime / 5000;
+  if(numsegs < 7) {
+    lengthShader = cgs.media.timerSlices[0];
+    totalsegs = 5;
+  } else if (numsegs < 12) {
+    lengthShader = cgs.media.timerSlices[1];
+    totalsegs = 7;
+  } else if (numsegs < 24) {
+    lengthShader = cgs.media.timerSlices[2];
+    totalsegs = 12;
+  } else {
+    lengthShader = cgs.media.timerSlices[3];
+    totalsegs = 24;
+  }
+  
+
+  // calculate segments
+  numsegs = ceil((1.0f-c) * totalsegs);
+  for (i = 0; i < numsegs; i++) {
+    re.rotation = 180.0f - (360.0f / (totalsegs * 2)) - (360.0f / totalsegs) * i;
+    VectorMA(origin, (float) (0.5 - 1) * TIMER_SIZE, vec, re.origin);
+		re.origin[2] += TIMER_SIZE;
+    re.customShader = lengthShader;
+    // fade the last segment in gradually
+    if(i == numsegs - 1) {
+      float fade = ((1.0f - c) - i * (1.0f / totalsegs) + 0.01f) / (1.0f / totalsegs);
+      if(fade > 1.0f) fade = 1.0f;
+      re.shaderRGBA[3] = (int)(fade * (float)re.shaderRGBA[3]);
+    }
+    trap_R_AddRefEntityToScene( &re );
+  }
+}
+#endif
+#endif
+
 /*
 ==================
 CG_Item
@@ -220,8 +428,22 @@ static void CG_Item( centity_t *cent ) {
 		CG_Error( "Bad item index %i on entity", es->modelindex );
 	}
 
+#ifdef USE_ITEM_TIMERS
+  if(es->frame
+		&& (es->eFlags & EF_NODRAW)
+    && (es->eFlags & EF_TIMER)) {
+#ifdef USE_GUNNM_TIMER
+#error problem
+		CG_ItemTimer(es, cent->lerpOrigin);
+#else
+		CG_ItemTimer( es->number, cent->lerpOrigin, es->time, es->frame * 1000 ); // save bandwidth
+#endif
+		return;
+  }
+#endif
+
 	// if set to invisible, skip
-	if ( !es->modelindex || ( es->eFlags & EF_NODRAW ) || cent->delaySpawn > cg.time ) {
+	if ( !es->modelindex || ( es->eFlags & EF_NODRAW ) || cent->delaySpawn > cg.time) {
 		return;
 	}
 
@@ -234,7 +456,10 @@ static void CG_Item( centity_t *cent ) {
 	}
 
 	item = &bg_itemlist[ es->modelindex ];
-	if ( cg_simpleItems.integer && item->giType != IT_TEAM ) {
+	if ( item->giType != IT_TEAM
+		&& cg_items[es->modelindex].icon_df
+		&& (cg_simpleItems.integer || !cg_items[es->modelindex].models[0])
+	) {
 		memset( &ent, 0, sizeof( ent ) );
 		ent.reType = RT_SPRITE;
 		VectorCopy( cent->lerpOrigin, ent.origin );
@@ -285,6 +510,11 @@ static void CG_Item( centity_t *cent ) {
 
 		cent->lerpOrigin[2] += 8;	// an extra height boost
 	}
+
+  // if model is still 0 don't render the world in it's place
+  if(!cg_items[es->modelindex].models[0]) {
+    return;
+  }
 
 	ent.hModel = cg_items[es->modelindex].models[0];
 
@@ -338,6 +568,18 @@ static void CG_Item( centity_t *cent ) {
 		VectorScale( ent.axis[2], 2, ent.axis[2] );
 		ent.nonNormalizedAxes = qtrue;
 	}
+#endif
+
+#ifdef USE_RUNES
+  if ( item->giType == IT_POWERUP && item->giTag >= RUNE_STRENGTH && item->giTag <= RUNE_LITHIUM ) {
+    ent.customShader = itemInfo->altShader1;
+    trap_R_AddRefEntityToScene(&ent);
+    if(itemInfo->altShader2) {
+      ent.customShader = itemInfo->altShader2;
+      trap_R_AddRefEntityToScene(&ent);
+    }
+    return;
+  }
 #endif
 
 	// add to refresh list
@@ -404,19 +646,17 @@ CG_Missile
 */
 static void CG_Missile( centity_t *cent ) {
 	refEntity_t			ent;
-	entityState_t		*s1;
 	const weaponInfo_t	*weapon;
 	const clientInfo_t	*ci;
 //	int	col;
 
-	s1 = &cent->currentState;
-	if ( s1->weapon >= WP_NUM_WEAPONS ) {
-		s1->weapon = WP_NONE;
+	if ( cent->currentState.weapon >= WP_NUM_WEAPONS ) {
+		cent->currentState.weapon = WP_NONE;
 	}
-	weapon = &cg_weapons[s1->weapon];
+	weapon = &cg_weapons[cent->currentState.weapon];
 
 	// calculate the axis
-	VectorCopy( s1->angles, cent->lerpAngles);
+	VectorCopy( cent->currentState.angles, cent->lerpAngles);
 
 	// add trails
 	if ( weapon->missileTrailFunc ) 
@@ -469,47 +709,68 @@ static void CG_Missile( centity_t *cent ) {
 		return;
 	}
 
+#ifdef USE_FLAME_THROWER
+  if (cent->currentState.weapon == WP_FLAME_THROWER ) {
+  	ent.reType = RT_SPRITE;
+  	ent.radius = 32;
+  	ent.rotation = 0;
+  	ent.customShader = cgs.media.flameBallShader;
+  	trap_R_AddRefEntityToScene( &ent );
+    return;
+  }
+#endif
+
 	// flicker between two skins
 	ent.skinNum = cg.clientFrame & 1;
 	ent.hModel = weapon->missileModel;
 	ent.renderfx = weapon->missileRenderfx | RF_NOSHADOW;
+  
+#ifdef USE_PORTALS
+  if(cent->currentState.weapon == WP_BFG
+    && cgwp_portalEnable.integer) {
+    if(cent->currentState.powerups & (1 << 4)) {
+      ent.customShader = cgs.media.blueBFG;
+    } else if(cent->currentState.powerups & (1 << 5)) {
+      ent.customShader = cgs.media.redBFG;
+    }
+  }
+#endif
 
 #ifdef MISSIONPACK
 	if ( cent->currentState.weapon == WP_PROX_LAUNCHER ) {
-		if (s1->generic1 == TEAM_BLUE) {
+		if (cent->currentState.generic1 == TEAM_BLUE) {
 			ent.hModel = cgs.media.blueProxMine;
 		}
 	}
 #endif
 
 	// convert direction of travel into axis
-	if ( VectorNormalize2( s1->pos.trDelta, ent.axis[0] ) == 0 ) {
+	if ( VectorNormalize2( cent->currentState.pos.trDelta, ent.axis[0] ) == 0 ) {
 		ent.axis[0][2] = 1;
 	}
 
 	// spin as it moves
-	if ( s1->pos.trType != TR_STATIONARY ) {
+	if ( cent->currentState.pos.trType != TR_STATIONARY ) {
 		RotateAroundDirection( ent.axis, ( cg.time % TMOD_004 ) / 4.0 );
 	} else {
 #ifdef MISSIONPACK
-		if ( s1->weapon == WP_PROX_LAUNCHER ) {
+		if ( cent->currentState.weapon == WP_PROX_LAUNCHER ) {
 			AnglesToAxis( cent->lerpAngles, ent.axis );
 		}
 		else
 #endif
 		{
-			RotateAroundDirection( ent.axis, s1->time );
+			RotateAroundDirection( ent.axis, cent->currentState.time );
 		}
 	}
 
 	// add to refresh list, possibly with quad glow
 
-	s1->powerups &= ~( (1 << PW_INVIS) | (1 << PW_REGEN) );
-	ci = &cgs.clientinfo[ s1->clientNum & MAX_CLIENTS ];
+	ci = &cgs.clientinfo[ cent->currentState.clientNum & MAX_CLIENTS ];
 	if ( ci->infoValid ) {
-		CG_AddRefEntityWithPowerups( &ent, s1, ci->team );
+		CG_AddRefEntityWithPowerups( &ent, cent, ci->team );
 	} else {
-		CG_AddRefEntityWithPowerups( &ent, s1, TEAM_FREE );
+		CG_AddRefEntityWithPowerups( &ent, cent, TEAM_FREE );
 	}
 
 }
@@ -523,17 +784,15 @@ This is called when the grapple is sitting up against the wall
 */
 static void CG_Grapple( centity_t *cent ) {
 	refEntity_t			ent;
-	entityState_t		*s1;
 	const weaponInfo_t		*weapon;
 
-	s1 = &cent->currentState;
-	if ( s1->weapon >= WP_NUM_WEAPONS ) {
-		s1->weapon = WP_NONE;
+	if ( cent->currentState.weapon >= WP_NUM_WEAPONS ) {
+		cent->currentState.weapon = WP_NONE;
 	}
-	weapon = &cg_weapons[s1->weapon];
+	weapon = &cg_weapons[cent->currentState.weapon];
 
 	// calculate the axis
-	VectorCopy( s1->angles, cent->lerpAngles);
+	VectorCopy( cent->currentState.angles, cent->lerpAngles);
 
 #if 0 // FIXME add grapple pull sound here..?
 	// add missile sound
@@ -556,7 +815,7 @@ static void CG_Grapple( centity_t *cent ) {
 	ent.renderfx = weapon->missileRenderfx | RF_NOSHADOW;
 
 	// convert direction of travel into axis
-	if ( VectorNormalize2( s1->pos.trDelta, ent.axis[0] ) == 0 ) {
+	if ( VectorNormalize2( cent->currentState.pos.trDelta, ent.axis[0] ) == 0 ) {
 		ent.axis[0][2] = 1;
 	}
 
@@ -570,9 +829,6 @@ CG_Mover
 */
 static void CG_Mover( const centity_t *cent ) {
 	refEntity_t			ent;
-	const entityState_t	*s1;
-
-	s1 = &cent->currentState;
 
 	// create the render entity
 	memset (&ent, 0, sizeof(ent));
@@ -586,19 +842,19 @@ static void CG_Mover( const centity_t *cent ) {
 	ent.skinNum = ( cg.time >> 6 ) & 1;
 
 	// get the model, either as a bmodel or a modelindex
-	if ( s1->solid == SOLID_BMODEL ) {
-		ent.hModel = cgs.inlineDrawModel[s1->modelindex];
+	if ( cent->currentState.solid == SOLID_BMODEL ) {
+		ent.hModel = cgs.inlineDrawModel[cent->currentState.modelindex];
 	} else {
-		ent.hModel = cgs.gameModels[s1->modelindex];
+		ent.hModel = cgs.gameModels[cent->currentState.modelindex];
 	}
 
 	// add to refresh list
 	trap_R_AddRefEntityToScene(&ent);
 
 	// add the secondary model
-	if ( s1->modelindex2 ) {
+	if ( cent->currentState.modelindex2 ) {
 		ent.skinNum = 0;
-		ent.hModel = cgs.gameModels[ s1->modelindex2 % MAX_MODELS ];
+		ent.hModel = cgs.gameModels[ cent->currentState.modelindex2 % MAX_MODELS ];
 		trap_R_AddRefEntityToScene(&ent);
 	}
 
@@ -613,14 +869,11 @@ Also called as an event
 */
 void CG_Beam( const centity_t *cent ) {
 	refEntity_t			ent;
-	const entityState_t	*s1;
-
-	s1 = &cent->currentState;
 
 	// create the render entity
 	memset (&ent, 0, sizeof(ent));
-	VectorCopy( s1->pos.trBase, ent.origin );
-	VectorCopy( s1->origin2, ent.oldorigin );
+	VectorCopy( cent->currentState.pos.trBase, ent.origin );
+	VectorCopy( cent->currentState.origin2, ent.oldorigin );
 	AxisClear( ent.axis );
 	ent.reType = RT_BEAM;
 
@@ -632,36 +885,183 @@ void CG_Beam( const centity_t *cent ) {
 }
 
 
+#ifdef USE_PORTALS
+#define AWAY_FROM_WALL 8.0f
+
+static void CG_PersonalPortal(const centity_t *cent) {
+  vec3_t		    angles, angles2, vec, velocity;
+	//vec3_t		    origin;
+  refEntity_t			ent;
+  qboolean        isMirror;
+  centity_t       *target;
+  //refdef_t		    refdef;
+	float           len;
+  //float           x = 0, y = 0, w = 640, h = 480;
+
+  // always face portal towards player
+  VectorSubtract( cg.refdef.vieworg, cent->lerpOrigin, vec );
+  len = VectorNormalize( vec );
+  VectorClear(angles);
+	VectorClear(angles2);
+
+  // add portal model
+  memset (&ent, 0, sizeof(ent));
+
+  // angles used below for camera direction
+  if( cent->currentState.eventParm ) {
+    // is wall portal
+    ByteToDir( cent->currentState.eventParm, angles );
+    vectoangles( angles, angles );
+    AnglesToAxis( angles, ent.axis );
+    AngleVectors ( angles, velocity, NULL, NULL );
+    VectorNormalize( velocity );
+    VectorScale( velocity, AWAY_FROM_WALL, velocity );
+    VectorSubtract( cent->lerpOrigin, velocity, ent.origin );
+  } else {
+		// is standalone portal
+		// tracks player position on 2 axis to make it always look like someone can fit through it
+		angles[YAW] = -180;
+		angles[YAW] += cg.refdefViewAngles[YAW];
+		angles[PITCH] -= cg.refdefViewAngles[PITCH];
+		angles[ROLL] = 0;
+		SnapVector( angles );
+		AxisClear( ent.axis );
+    AnglesToAxis( angles, ent.axis );
+    VectorCopy( cent->lerpOrigin, ent.origin);
+  }
+
+  ent.hModel = cgs.gameModels[cent->currentState.modelindex];
+	//VectorScale( ent.axis[0], 1.5, ent.axis[0] );
+	//VectorScale( ent.axis[1], 1.5, ent.axis[1] );
+	//VectorScale( ent.axis[2], 1.5, ent.axis[2] );
+	//ent.nonNormalizedAxes = qtrue;
+  if(!ent.hModel) {
+    return;
+  }
+  ent.reType = RT_MODEL;
+	//ent.reType = RT_SPRITE;
+  ent.renderfx = RF_NOSHADOW | RF_FIRST_PERSON;
+  ent.frame = cent->currentState.number;
+  ent.oldframe = cent->currentState.otherEntityNum;
+  trap_R_AddRefEntityToScene (&ent);
+
+
+
+  // add portal camera view
+  memset (&ent, 0, sizeof(ent));
+	VectorCopy( cent->lerpOrigin, ent.origin );
+  VectorCopy( cent->currentState.origin2, ent.oldorigin );
+	//PerpendicularVector( vec, angles );
+	//VectorScale( vec, AWAY_FROM_WALL, vec );
+	//VectorSubtract( cent->lerpOrigin, vec, ent.origin );
+	//VectorSubtract( cent->currentState.origin2, vec, ent.oldorigin );
+  // TODO: size of portal model cached somewhere else like itemInfo_t?
+  // TODO: change cg_weapons to match, it also uses midpoint of weapon models?
+  //if(cent->currentState.powerups)
+  //Com_Printf("origin: %f, %f, %f == %f, %f, %f\n", 
+  //  ent.origin[0], ent.origin[1], ent.origin[2],
+  //  ent.oldorigin[0], ent.oldorigin[1], ent.oldorigin[2]);
+  if(ent.origin[0] == ent.oldorigin[0]
+    && ent.origin[1] == ent.oldorigin[1]
+    && ent.origin[2] == ent.oldorigin[2]
+  ) {
+    // is mirror
+		isMirror = qtrue;
+		target = &cg_entities[cent->currentState.otherEntityNum];
+		if(target->currentState.eventParm) {
+			AxisClear( ent.axis );
+		} else {
+			angles2[PITCH] = angles[PITCH];
+			AnglesToAxis( angles2, ent.axis );
+		}
+		/*
+		if( target->currentState.eventParm
+			|| cent->currentState.eventParm ) {
+			ByteToDir( target->currentState.eventParm, angles2 );
+			vectoangles( angles2, angles2 );
+			AnglesToAxis( angles2, ent.axis );
+		}
+		*/
+  } else {
+		isMirror = qfalse;
+		target = &cg_entities[cent->currentState.otherEntityNum];
+		if( target->currentState.eventParm ) {
+			// if it is a wall portal
+			ByteToDir( target->currentState.eventParm, angles2 );
+			vectoangles( angles2, angles2 );
+			angles2[PITCH] = -angles[PITCH];
+			angles2[YAW] += angles[YAW];
+			angles2[ROLL] = -90;
+			AnglesToAxis( angles2, ent.axis );
+		} else {
+			// TODO: camera bobbing might actually be cool for free standing portals
+			// 180 from portal is same as continuing the view angle but from another position
+			angles2[PITCH] = -angles[PITCH];
+			angles2[YAW] = angles[YAW] - 180;
+			angles2[ROLL] = -90;
+			AnglesToAxis( angles2, ent.axis );
+		}
+	}
+  ent.reType = RT_PORTALSURFACE;
+  //ent.renderfx = RF_FIRST_PERSON;
+	//ent.radius = 12;
+	ent.skinNum = 0;
+  ent.frame = cent->currentState.number;
+  ent.oldframe = (cent->currentState.powerups & 0xF0) | 12;
+  trap_R_AddRefEntityToScene(&ent);
+}
+
+
+void CG_DrawPortals( void ) {
+	centity_t			*cent;
+	int num;
+	for ( num = 0 ; num < cg.snap->numEntities ; num++ ) {
+		cent = &cg_entities[ cg.snap->entities[ num ].number ];
+#ifdef USE_PORTALS
+    if(cent->currentState.eType == ET_TELEPORT_TRIGGER
+			&& cent->currentState.modelindex
+			//&& cent->currentState.clientNum
+			&& (cent->currentState.powerups & ((1 << 4) | (1 << 5)))
+		) {
+      CG_PersonalPortal( cent );
+		}
+#endif
+	}
+}
+
+#endif
+
+
 /*
 ===============
 CG_Portal
 ===============
 */
 static void CG_Portal( const centity_t *cent ) {
-	refEntity_t			ent;
-	const entityState_t *s1;
+  refEntity_t			ent;
+  const entityState_t *s1;
 
-	s1 = &cent->currentState;
+  s1 = &cent->currentState;
 
-	// create the render entity
-	memset (&ent, 0, sizeof(ent));
-	VectorCopy( cent->lerpOrigin, ent.origin );
-	VectorCopy( s1->origin2, ent.oldorigin );
-	ByteToDir( s1->eventParm, ent.axis[0] );
-	PerpendicularVector( ent.axis[1], ent.axis[0] );
+  // create the render entity
+  memset (&ent, 0, sizeof(ent));
+  VectorCopy( cent->lerpOrigin, ent.origin );
+  VectorCopy( s1->origin2, ent.oldorigin );
+  ByteToDir( s1->eventParm, ent.axis[0] );
+  PerpendicularVector( ent.axis[1], ent.axis[0] );
 
-	// negating this tends to get the directions like they want
-	// we really should have a camera roll value
-	VectorSubtract( vec3_origin, ent.axis[1], ent.axis[1] );
+  // negating this tends to get the directions like they want
+  // we really should have a camera roll value
+  VectorSubtract( vec3_origin, ent.axis[1], ent.axis[1] );
 
-	CrossProduct( ent.axis[0], ent.axis[1], ent.axis[2] );
-	ent.reType = RT_PORTALSURFACE;
-	ent.oldframe = s1->powerups;
-	ent.frame = s1->frame;		// rotation speed
-	ent.skinNum = s1->clientNum/256.0 * 360;	// roll offset
+  CrossProduct( ent.axis[0], ent.axis[1], ent.axis[2] );
+  ent.reType = RT_PORTALSURFACE;
+  ent.oldframe = s1->powerups;
+  ent.frame = s1->frame;		// rotation speed
+  ent.skinNum = s1->clientNum/256.0 * 360;	// roll offset
 
-	// add to refresh list
-	trap_R_AddRefEntityToScene(&ent);
+  // add to refresh list
+  trap_R_AddRefEntityToScene(&ent);
 }
 
 
@@ -756,6 +1156,12 @@ static void CG_CalcEntityLerpPositions( centity_t *cent ) {
 			cent->nextState.pos.trType = TR_INTERPOLATE;
 		}
 	}
+  
+  //if(cent->currentState.pos.trType == TR_AUTOSPRITE) {
+  //  VectorCopy( cent->currentState.angles, cent->lerpAngles );
+  //  VectorSubtract( vec3_origin, cent->lerpAngles, cent->lerpAngles );
+  //  return;
+  //}
 
 	if ( cent->interpolate && cent->currentState.pos.trType == TR_INTERPOLATE ) {
 		CG_InterpolateEntityPosition( cent );
@@ -787,7 +1193,7 @@ static void CG_CalcEntityLerpPositions( centity_t *cent ) {
 CG_TeamBase
 ===============
 */
-static void CG_TeamBase( const centity_t *cent ) {
+static void CG_TeamBase( centity_t *cent ) {
 	refEntity_t model;
 #ifdef MISSIONPACK
 	vec3_t angles;
@@ -935,6 +1341,42 @@ static void CG_TeamBase( const centity_t *cent ) {
 #endif
 }
 
+
+#ifdef USE_LASER_SIGHT
+/*
+==================
+CG_LaserSight
+  Creates the laser
+==================
+*/
+
+static void CG_LaserSight( centity_t *cent )  {
+	refEntity_t			ent;
+
+
+	// create the render entity
+	memset (&ent, 0, sizeof(ent));
+	VectorCopy( cent->lerpOrigin, ent.origin);
+	VectorCopy( cent->lerpOrigin, ent.oldorigin);
+
+	if (cent->currentState.eventParm == 1)
+	{
+		ent.reType = RT_SPRITE;
+		ent.radius = 2;
+		ent.rotation = 0;
+		ent.customShader = cgs.media.laserShader;
+		trap_R_AddRefEntityToScene( &ent );
+	}
+	else	{
+		trap_R_AddLightToScene(ent.origin, 200, 1, 1, 1);
+	}
+
+	
+}
+
+#endif
+
+
 /*
 ===============
 CG_AddCEntity
@@ -959,7 +1401,14 @@ static void CG_AddCEntity( centity_t *cent ) {
 		break;
 	case ET_INVISIBLE:
 	case ET_PUSH_TRIGGER:
+		break;
 	case ET_TELEPORT_TRIGGER:
+		if(cent->currentState.modelindex
+		//	&& cent->currentState.clientNum
+			&& (cent->currentState.powerups & ((1 << 4) | (1 << 5)))
+		) {
+      CG_PersonalPortal( cent );
+		}
 		break;
 	case ET_GENERAL:
 		CG_General( cent );
@@ -980,7 +1429,7 @@ static void CG_AddCEntity( centity_t *cent ) {
 		CG_Beam( cent );
 		break;
 	case ET_PORTAL:
-		CG_Portal( cent );
+    CG_Portal( cent );
 		break;
 	case ET_SPEAKER:
 		CG_Speaker( cent );
@@ -991,6 +1440,11 @@ static void CG_AddCEntity( centity_t *cent ) {
 	case ET_TEAM:
 		CG_TeamBase( cent );
 		break;
+#ifdef USE_LASER_SIGHT
+  case ET_LASER:
+		CG_LaserSight( cent );
+		break;
+#endif
 	}
 }
 
@@ -1046,4 +1500,3 @@ void CG_AddPacketEntities( void ) {
 		CG_AddCEntity( cent );
 	}
 }
-

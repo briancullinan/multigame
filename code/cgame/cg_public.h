@@ -144,11 +144,13 @@ typedef enum {
 	// 1.32
 	CG_FS_SEEK,
 
-/*
+	// camera extensions
 	CG_LOADCAMERA,
 	CG_STARTCAMERA,
+	CG_STOPCAMERA,
 	CG_GETCAMERAINFO,
-*/
+
+	CG_R_ADDPOLYBUFFERTOSCENE,
 
 	CG_MEMSET = 100,
 	CG_MEMCPY,
@@ -210,8 +212,11 @@ typedef enum {
 
 	CG_MOUSE_EVENT,
 //	void	(*CG_MouseEvent)( int dx, int dy );
-	CG_EVENT_HANDLING
-//	void (*CG_EventHandling)(int type);
+
+	CG_EVENT_HANDLING,
+//	void (*CG_EventHandling)(cgame_event_t type);
+
+	CG_EXPORT_LAST
 } cgameExport_t;
 
 //----------------------------------------------

@@ -9,15 +9,17 @@
 
 qboolean		m_entersound;		// after a frame, so caching won't disrupt the sound
 
+#ifndef BUILD_GAME_STATIC
 // these are here so the functions in q_shared.c can link
-#ifndef UI_HARD_LINKED
+
+extern int ED_vsprintf( char *buffer, const char *fmt, va_list argptr );
 
 void QDECL Com_Error( int level, const char *error, ... ) {
 	va_list		argptr;
 	char		text[1024];
 
 	va_start (argptr, error);
-	vsprintf (text, error, argptr);
+	ED_vsprintf (text, error, argptr);
 	va_end (argptr);
 
 	trap_Error( va("%s", text) );
@@ -28,10 +30,23 @@ void QDECL Com_Printf( const char *msg, ... ) {
 	char		text[1024];
 
 	va_start (argptr, msg);
-	vsprintf (text, msg, argptr);
+	ED_vsprintf (text, msg, argptr);
 	va_end (argptr);
 
 	trap_Print( va("%s", text) );
+}
+
+void QDECL Com_DPrintf( const char *msg, ... ) {
+	va_list		argptr;
+	char		text[1024];
+
+	va_start (argptr, msg);
+	ED_vsprintf (text, msg, argptr);
+	va_end (argptr);
+
+	if(ui_developer.integer) {
+		trap_Print( text );
+	}
 }
 
 #endif
@@ -296,6 +311,10 @@ static void UI_CalcPostGameStats() {
 }
 
 
+#ifdef MISSIONPACK
+qboolean UI_ConsoleCommand2( int realTime );
+#endif
+
 /*
 =================
 UI_ConsoleCommand
@@ -358,7 +377,12 @@ qboolean UI_ConsoleCommand( int realTime ) {
 		return qtrue;
 	}
 
+#ifdef USE_CLASSIC_MENU
+	// TODO: merge postgame
+	return UI_ConsoleCommand2( realTime );
+#else
 	return qfalse;
+#endif
 }
 
 /*
@@ -371,12 +395,12 @@ void UI_Shutdown( void ) {
 
 /*
 ================
-UI_AdjustFrom640
+UI_AdjustFrom6402
 
 Adjusted for resolution and screen aspect ratio
 ================
 */
-void UI_AdjustFrom640( float *x, float *y, float *w, float *h ) {
+void UI_AdjustFrom6402( float *x, float *y, float *w, float *h ) {
 	// expect valid pointers
 #if 0
 	*x = *x * uiInfo.uiDC.scale + uiInfo.uiDC.bias;
@@ -392,15 +416,7 @@ void UI_AdjustFrom640( float *x, float *y, float *w, float *h ) {
 
 }
 
-void UI_DrawNamedPic( float x, float y, float width, float height, const char *picname ) {
-	qhandle_t	hShader;
-
-	hShader = trap_R_RegisterShaderNoMip( picname );
-	UI_AdjustFrom640( &x, &y, &width, &height );
-	trap_R_DrawStretchPic( x, y, width, height, 0, 0, 1, 1, hShader );
-}
-
-void UI_DrawHandlePic( float x, float y, float w, float h, qhandle_t hShader ) {
+void UI_DrawHandlePic2( float x, float y, float w, float h, qhandle_t hShader ) {
 	float	s0;
 	float	s1;
 	float	t0;
@@ -426,7 +442,7 @@ void UI_DrawHandlePic( float x, float y, float w, float h, qhandle_t hShader ) {
 		t1 = 1;
 	}
 	
-	UI_AdjustFrom640( &x, &y, &w, &h );
+	UI_AdjustFrom6402( &x, &y, &w, &h );
 	trap_R_DrawStretchPic( x, y, w, h, s0, t0, s1, t1, hShader );
 }
 
@@ -440,20 +456,20 @@ Coordinates are 640*480 virtual values
 void UI_FillRect( float x, float y, float width, float height, const float *color ) {
 	trap_R_SetColor( color );
 
-	UI_AdjustFrom640( &x, &y, &width, &height );
+	UI_AdjustFrom6402( &x, &y, &width, &height );
 	trap_R_DrawStretchPic( x, y, width, height, 0, 0, 0, 0, uiInfo.uiDC.whiteShader );
 
 	trap_R_SetColor( NULL );
 }
 
 void UI_DrawSides(float x, float y, float w, float h) {
-	UI_AdjustFrom640( &x, &y, &w, &h );
+	UI_AdjustFrom6402( &x, &y, &w, &h );
 	trap_R_DrawStretchPic( x, y, 1, h, 0, 0, 0, 0, uiInfo.uiDC.whiteShader );
 	trap_R_DrawStretchPic( x + w - 1, y, 1, h, 0, 0, 0, 0, uiInfo.uiDC.whiteShader );
 }
 
 void UI_DrawTopBottom(float x, float y, float w, float h) {
-	UI_AdjustFrom640( &x, &y, &w, &h );
+	UI_AdjustFrom6402( &x, &y, &w, &h );
 	trap_R_DrawStretchPic( x, y, w, 1, 0, 0, 0, 0, uiInfo.uiDC.whiteShader );
 	trap_R_DrawStretchPic( x, y + h - 1, w, 1, 0, 0, 0, 0, uiInfo.uiDC.whiteShader );
 }

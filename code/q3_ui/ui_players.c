@@ -24,7 +24,6 @@
 static int			dp_realtime;
 static float		jumpHeight;
 
-
 /*
 ===============
 UI_PlayerInfo_SetWeapon
@@ -114,9 +113,11 @@ tryagain:
 		MAKERGB( pi->flashDlightColor, 1, 0.7f, 1 );
 		break;
 
+#ifdef USE_GRAPPLE
 	case WP_GRAPPLING_HOOK:
 		MAKERGB( pi->flashDlightColor, 0.6f, 0.6f, 1 );
 		break;
+#endif
 
 	default:
 		MAKERGB( pi->flashDlightColor, 1, 1, 1 );
@@ -336,7 +337,6 @@ static void UI_SetLerpFrameAnimation( playerInfo_t *ci, lerpFrame_t *lf, int new
 	lf->animationTime = lf->frameTime + anim->initialLerp;
 }
 
-
 /*
 ===============
 UI_RunLerpFrame
@@ -543,8 +543,6 @@ static float UI_MovedirAdjustment( playerInfo_t *pi ) {
 
 	return -22;
 }
-
-
 /*
 ===============
 UI_PlayerAngles
@@ -628,7 +626,7 @@ static void UI_PlayerFloatSprite( playerInfo_t *pi, vec3_t origin, qhandle_t sha
 UI_MachinegunSpinAngle
 ======================
 */
-float	UI_MachinegunSpinAngle( playerInfo_t *pi ) {
+static float	UI_MachinegunSpinAngle( playerInfo_t *pi ) {
 	int		delta;
 	float	angle;
 	float	speed;
@@ -1075,21 +1073,21 @@ qboolean UI_RegisterClientModelname( playerInfo_t *pi, const char *modelSkinName
 	Com_sprintf( filename, sizeof( filename ), "models/players/%s/lower.md3", modelName );
 	pi->legsModel = trap_R_RegisterModel( filename );
 	if ( !pi->legsModel ) {
-		Com_Printf( "Failed to load model file %s\n", filename );
+		Com_DPrintf( "Failed to load model file %s\n", filename );
 		return qfalse;
 	}
 
 	Com_sprintf( filename, sizeof( filename ), "models/players/%s/upper.md3", modelName );
 	pi->torsoModel = trap_R_RegisterModel( filename );
 	if ( !pi->torsoModel ) {
-		Com_Printf( "Failed to load model file %s\n", filename );
+		Com_DPrintf( "Failed to load model file %s\n", filename );
 		return qfalse;
 	}
 
 	Com_sprintf( filename, sizeof( filename ), "models/players/%s/head.md3", modelName );
 	pi->headModel = trap_R_RegisterModel( filename );
 	if ( !pi->headModel ) {
-		Com_Printf( "Failed to load model file %s\n", filename );
+		Com_DPrintf( "Failed to load model file %s\n", filename );
 		return qfalse;
 	}
 

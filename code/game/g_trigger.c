@@ -125,6 +125,20 @@ void trigger_push_touch (gentity_t *self, gentity_t *other, trace_t *trace ) {
 	if ( !other->client ) {
 		return;
 	}
+  
+#ifdef USE_GRAPPLE
+  if (other->client && other->client->hook)
+    return;
+#endif
+  
+  // moved from bg_misc
+  // flying characters don't hit bounce pads
+  if(other->items[ITEM_PW_MIN + PW_FLIGHT])
+    return;
+#ifdef USE_RUNES
+  if(other->items[ITEM_PW_MIN + RUNE_FLIGHT])
+    return;
+#endif
 
 	BG_TouchJumpPad( &other->client->ps, &self->s );
 }
@@ -201,7 +215,7 @@ void Use_target_push( gentity_t *self, gentity_t *other, gentity_t *activator ) 
 	if ( activator->client->ps.pm_type != PM_NORMAL ) {
 		return;
 	}
-	if ( activator->client->ps.powerups[PW_FLIGHT] ) {
+	if ( activator->items[ITEM_PW_MIN + PW_FLIGHT] ) {
 		return;
 	}
 
@@ -283,7 +297,18 @@ Spectator teleporters are not normally placed in the editor, but are created
 automatically near doors to allow spectators to move through them
 */
 void SP_trigger_teleport( gentity_t *self ) {
+	char *s;
+	int arena;
 	InitTrigger (self);
+
+	G_SpawnString( "target", "", &s );
+	if(!self->target) {
+		G_SpawnInt("arena", "0", &arena);
+		if(arena) {
+			G_Printf ("Filling in arena_%i\n", arena);
+			self->target = va("arena_%i", arena);
+		}
+	}
 
 	// unlike other triggers, we need to send this one to the client
 	// unless is a spectator trigger
@@ -357,7 +382,15 @@ void hurt_touch( gentity_t *self, gentity_t *other, trace_t *trace ) {
 		dflags = DAMAGE_NO_PROTECTION;
 	else
 		dflags = 0;
-	G_Damage (other, self, self, NULL, NULL, self->damage, dflags, MOD_TRIGGER_HURT);
+
+#ifdef USE_MODES_DEATH
+  if(other->client && other->client->ps.velocity[2] < -1000
+    && other->client->ps.groundEntityNum == ENTITYNUM_NONE) {
+    //Com_DPrintf("void death: %f\n", other->client->ps.velocity[2]);
+    G_Damage (other, self, self, NULL, NULL, self->damage, dflags, MOD_VOID);
+  } else
+#endif
+  G_Damage (other, self, self, NULL, NULL, self->damage, dflags, MOD_TRIGGER_HURT);
 }
 
 void SP_trigger_hurt( gentity_t *self ) {
@@ -441,5 +474,3 @@ void SP_func_timer( gentity_t *self ) {
 
 	self->r.svFlags = SVF_NOCLIENT;
 }
-
-

@@ -27,7 +27,7 @@ vmCvar_t	g_friendlyFire;
 vmCvar_t	g_password;
 vmCvar_t	g_needpass;
 vmCvar_t	g_mapname;
-vmCvar_t	sv_fps;
+vmCvar_t	g_fps;
 vmCvar_t	g_maxclients;
 vmCvar_t	g_maxGameClients;
 vmCvar_t	g_dedicated;
@@ -47,7 +47,7 @@ vmCvar_t	g_motd;
 vmCvar_t	g_synchronousClients;
 vmCvar_t	g_warmup;
 vmCvar_t	g_predictPVS;
-//vmCvar_t	g_restarted;
+vmCvar_t	g_restarted;
 vmCvar_t	g_log;
 vmCvar_t	g_logSync;
 vmCvar_t	g_blood;
@@ -77,7 +77,165 @@ vmCvar_t	g_enableDust;
 vmCvar_t	g_enableBreath;
 vmCvar_t	g_proxMineTimeout;
 #endif
+#ifdef USE_PHYSICS_VARS
+#ifdef MISSIONPACK
+vmCvar_t  g_scoutFactor;
+#endif
+vmCvar_t  g_hasteFactor;
+vmCvar_t  g_jumpVelocity;
+vmCvar_t  g_wallWalk;
+#endif
 
+
+#ifdef USE_WEAPON_VARS
+vmCvar_t  wp_gauntCycle;
+vmCvar_t  wp_gauntDamage;
+
+vmCvar_t  wp_lightCycle;
+vmCvar_t  wp_lightDamage;
+
+vmCvar_t  wp_shotgunCycle;
+vmCvar_t  wp_shotgunDamage;
+
+vmCvar_t  wp_machineCycle;
+vmCvar_t  wp_machineDamage;
+vmCvar_t  wp_machineDamageTeam;
+
+vmCvar_t  wp_grenadeCycle;
+vmCvar_t  wp_grenadeDamage;
+vmCvar_t  wp_grenadeSplash;
+vmCvar_t  wp_grenadeRadius;
+vmCvar_t  wp_grenadeSpeed;
+vmCvar_t  wp_grenadeTime;
+
+vmCvar_t  wp_rocketCycle;
+vmCvar_t  wp_rocketDamage;
+vmCvar_t  wp_rocketSplash;
+vmCvar_t  wp_rocketRadius;
+vmCvar_t  wp_rocketSpeed;
+vmCvar_t  wp_rocketTime;
+
+vmCvar_t  wp_plasmaCycle;
+vmCvar_t  wp_plasmaDamage;
+vmCvar_t  wp_plasmaSplash;
+vmCvar_t  wp_plasmaRadius;
+vmCvar_t  wp_plasmaSpeed;
+vmCvar_t  wp_plasmaTime;
+
+vmCvar_t  wp_railCycle;
+vmCvar_t  wp_railDamage;
+
+vmCvar_t  wp_bfgCycle;
+vmCvar_t  wp_bfgDamage;
+vmCvar_t  wp_bfgSplash;
+vmCvar_t  wp_bfgRadius;
+vmCvar_t  wp_bfgSpeed;
+vmCvar_t  wp_bfgTime;
+
+#ifdef USE_GRAPPLE
+vmCvar_t  wp_grappleEnable;
+vmCvar_t  wp_grapplePull;
+vmCvar_t  wp_grappleCycle;
+vmCvar_t  wp_grappleDamage;
+vmCvar_t  wp_grappleSpeed;
+vmCvar_t  wp_grappleTime;
+#endif
+#ifdef MISSIONPACK
+vmCvar_t  wp_nailCycle;
+vmCvar_t  wp_nailDamage;
+vmCvar_t	wp_nailSpeed;
+vmCvar_t  wp_nailTime;
+
+vmCvar_t  wp_proxCycle;
+vmCvar_t  wp_proxDamage;
+vmCvar_t  wp_proxSplash;
+vmCvar_t  wp_proxRadius;
+vmCvar_t  wp_proxSpeed;
+vmCvar_t  wp_proxTime;
+
+vmCvar_t  wp_chainCycle;
+vmCvar_t  wp_chainDamage;
+#endif
+#ifdef USE_FLAME_THROWER
+vmCvar_t  wp_flameCycle;
+vmCvar_t  wp_flameDamage;
+vmCvar_t  wp_flameSplash;
+vmCvar_t  wp_flameRadius;
+#endif
+#endif // USE_WEAPON_VARS
+
+#if defined(USE_PORTALS)
+vmCvar_t  wp_portalEnable;
+#if defined(USE_ALT_FIRE)
+vmCvar_t  g_altPortal;
+#endif
+#endif
+
+#if defined(USE_ALT_FIRE) && defined(USE_GRAPPLE)
+vmCvar_t  g_altGrapple;
+#endif
+#ifdef USE_TEAM_VARS
+vmCvar_t	g_flagReturn;
+#endif
+#ifdef USE_REFEREE_CMDS
+vmCvar_t	g_callvotable;
+#endif
+#if defined(USE_GAME_FREEZETAG) || defined(USE_REFEREE_CMDS)
+vmCvar_t	g_thawTime;
+#endif
+#ifdef USE_INVULN_RAILS
+vmCvar_t	g_railThruWalls;
+#endif
+#ifdef USE_HOMING_MISSILE
+vmCvar_t	wp_rocketHoming;
+#endif
+#ifdef USE_BOUNCE_RPG
+vmCvar_t	wp_rocketBounce;
+vmCvar_t  wp_plasmaBounce;
+vmCvar_t  wp_bfgBounce;
+#endif
+#ifdef USE_BOUNCE_RAIL
+vmCvar_t  wp_railBounce;
+#endif
+#ifdef USE_VULN_RPG
+vmCvar_t  wp_rocketVuln;
+#endif
+#ifdef USE_ACCEL_RPG
+vmCvar_t  wp_rocketAccel;
+#endif
+#ifdef USE_CLOAK_CMD
+vmCvar_t	g_enableCloak;
+#endif
+#ifdef USE_CLUSTER_GRENADES
+vmCvar_t	g_clusterGrenades;
+#endif
+#ifdef USE_VORTEX_GRENADES
+vmCvar_t	g_vortexGrenades;
+#endif
+#ifdef USE_WEAPON_DROP
+vmCvar_t  g_dropWeapon;
+#endif
+#ifdef USE_GRAVITY_BOOTS
+vmCvar_t  g_enableBoots;
+#endif
+#ifdef USE_LOCAL_DMG
+vmCvar_t  g_locDamage;
+#endif
+#ifdef USE_LASER_SIGHT
+vmCvar_t  g_enableLaser;
+#endif
+#ifdef USE_TRINITY
+vmCvar_t  g_unholyTrinity;
+#endif
+#ifdef USE_INSTAGIB
+vmCvar_t  g_instagib;
+#endif
+#ifdef USE_HOTRPG
+vmCvar_t  g_hotRockets;
+#endif
+#ifdef USE_HOTBFG
+vmCvar_t  g_hotBFG;
+#endif
 
 static cvarTable_t gameCvarTable[] = {
 	// don't override the cheat state set by the system
@@ -86,9 +244,10 @@ static cvarTable_t gameCvarTable[] = {
 	// noset vars
 	{ NULL, "gamename", GAMEVERSION , CVAR_SERVERINFO | CVAR_ROM, 0, qfalse  },
 	{ NULL, "gamedate", __DATE__ , CVAR_ROM, 0, qfalse  },
-	//{ &g_restarted, "g_restarted", "0", CVAR_ROM, 0, qfalse  },
+	{ &g_restarted, "g_restarted", "0", CVAR_ROM, 0, qfalse  },
 	{ &g_mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse  },
-	{ &sv_fps, "sv_fps", "30", CVAR_ARCHIVE, 0, qfalse  },
+	{ &g_fps, "sv_fps", "30", CVAR_ARCHIVE, 0, qfalse  },
+  { NULL, "multigame", "1" , CVAR_SERVERINFO | CVAR_ROM, 0, qfalse  },
 
 	// latched vars
 	{ &g_gametype, "g_gametype", "0", CVAR_SERVERINFO | CVAR_USERINFO | CVAR_LATCH, 0, qfalse  },
@@ -123,7 +282,7 @@ static cvarTable_t gameCvarTable[] = {
 	{ &g_dedicated, "dedicated", "0", 0, 0, qfalse  },
 
 	{ &g_speed, "g_speed", "320", 0, 0, qtrue  },
-	{ &g_gravity, "g_gravity", "800", 0, 0, qtrue  },
+	{ &g_gravity, "g_gravity", "800", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qtrue  },
 	{ &g_knockback, "g_knockback", "1000", 0, 0, qtrue  },
 	{ &g_quadfactor, "g_quadfactor", "3", 0, 0, qtrue  },
 	{ &g_weaponRespawn, "g_weaponrespawn", "5", 0, 0, qtrue  },
@@ -161,8 +320,191 @@ static cvarTable_t gameCvarTable[] = {
 	{ &g_proxMineTimeout, "g_proxMineTimeout", "20000", 0, 0, qfalse },
 #endif
 	{ &g_smoothClients, "g_smoothClients", "1", 0, 0, qfalse},
-	{ &pmove_fixed, "pmove_fixed", "0", CVAR_SYSTEMINFO, 0, qfalse},
+#ifdef BUILD_GAME_STATIC
+  { &pmove_fixed, "pmove_fixed", "1", CVAR_SYSTEMINFO, 0, qfalse},
+#else
+#ifdef USE_MULTIVM_CLIENT
+  { &pmove_fixed, "pmove_fixed", "1", CVAR_SYSTEMINFO, 0, qfalse},
+#else
+  { &pmove_fixed, "pmove_fixed", "3", CVAR_SYSTEMINFO, 0, qfalse},
+#endif
+#endif
 	{ &pmove_msec, "pmove_msec", "8", CVAR_SYSTEMINFO, 0, qfalse},
+
+#ifdef USE_WEAPON_VARS
+  { &wp_gauntCycle,        "wp_gauntCycle",        "400",  CVAR_ARCHIVE | CVAR_SERVERINFO },
+  { &wp_gauntDamage,       "wp_gauntDamage",       "50",   CVAR_ARCHIVE },
+
+  { &wp_lightCycle,        "wp_lightCycle",        "50",   CVAR_ARCHIVE | CVAR_SERVERINFO },
+  { &wp_lightDamage,       "wp_lightDamage",       "8",    CVAR_ARCHIVE },
+
+  { &wp_shotgunCycle,      "wp_shotgunCycle",      "1000", CVAR_ARCHIVE | CVAR_SERVERINFO },
+  { &wp_shotgunDamage,     "wp_shotgunDamage",     "10",   CVAR_ARCHIVE },
+
+  { &wp_machineCycle,      "wp_machineCycle",      "100",  CVAR_ARCHIVE | CVAR_SERVERINFO },
+  { &wp_machineDamage,     "wp_machineDamage",     "7",    CVAR_ARCHIVE },
+  { &wp_machineDamageTeam, "wp_machineDamageTeam", "5",    CVAR_ARCHIVE },
+
+  { &wp_grenadeCycle,      "wp_grenadeCycle",      "800",  CVAR_ARCHIVE | CVAR_SERVERINFO },
+  { &wp_grenadeDamage,     "wp_grenadeDamage",     "100",  CVAR_ARCHIVE },
+  { &wp_grenadeSplash,     "wp_grenadeSplash",     "100",  CVAR_ARCHIVE },
+  { &wp_grenadeRadius,     "wp_grenadeRadius",     "150",  CVAR_ARCHIVE },
+  { &wp_grenadeSpeed,      "wp_grenadeSpeed",      "700",  CVAR_ARCHIVE },
+  { &wp_grenadeTime,       "wp_grenadeTime",       "2.5",  CVAR_ARCHIVE },
+
+  { &wp_rocketCycle,       "wp_rocketCycle",       "800",  CVAR_ARCHIVE | CVAR_SERVERINFO },
+  { &wp_rocketDamage,      "wp_rocketDamage",      "100",  CVAR_ARCHIVE },
+  { &wp_rocketSplash,      "wp_rocketSplash",      "100",  CVAR_ARCHIVE },
+  { &wp_rocketRadius,      "wp_rocketRadius",      "120",  CVAR_ARCHIVE },
+  { &wp_rocketSpeed,       "wp_rocketSpeed",       "900",  CVAR_ARCHIVE },
+  { &wp_rocketTime,        "wp_rocketTime",        "15",   CVAR_ARCHIVE },
+
+  { &wp_plasmaCycle,       "wp_plasmaCycle",       "100",  CVAR_ARCHIVE | CVAR_SERVERINFO },
+  { &wp_plasmaDamage,      "wp_plasmaDamage",      "20",   CVAR_ARCHIVE },
+  { &wp_plasmaSplash,      "wp_plasmaSplash",      "15",   CVAR_ARCHIVE },
+  { &wp_plasmaRadius,      "wp_plasmaRadius",      "20",   CVAR_ARCHIVE },
+  { &wp_plasmaSpeed,       "wp_plasmaSpeed",       "2000", CVAR_ARCHIVE },
+  { &wp_plasmaTime,        "wp_plasmaTime",        "10.0", CVAR_ARCHIVE },
+
+  { &wp_railCycle,         "wp_railCycle",         "1500", CVAR_ARCHIVE | CVAR_SERVERINFO },
+  { &wp_railDamage,        "wp_railDamage",        "100",  CVAR_ARCHIVE },
+
+  { &wp_bfgCycle,          "wp_bfgCycle",          "200",  CVAR_ARCHIVE | CVAR_SERVERINFO },
+  { &wp_bfgDamage,         "wp_bfgDamage",         "100",  CVAR_ARCHIVE },
+  { &wp_bfgSplash,         "wp_bfgSplash",         "100",  CVAR_ARCHIVE },
+  { &wp_bfgRadius,         "wp_bfgRadius",         "120",  CVAR_ARCHIVE },
+  { &wp_bfgSpeed,          "wp_bfgSpeed",          "2000", CVAR_ARCHIVE },
+  { &wp_bfgTime,           "wp_bfgTime",           "10",   CVAR_ARCHIVE },
+
+#ifdef USE_GRAPPLE
+  { &wp_grappleEnable,     "wp_grappleEnable", "0",    CVAR_ARCHIVE, 0, qfalse },
+  { &wp_grapplePull,       "wp_grapplePull",   "700",  CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qfalse },
+  { &wp_grappleCycle,      "wp_grappleCycle",  "400",  CVAR_ARCHIVE | CVAR_SERVERINFO },
+  { &wp_grappleDamage,     "wp_grappleDamage", "300",  CVAR_ARCHIVE },
+  { &wp_grappleSpeed,      "wp_grappleSpeed",  "2000", CVAR_ARCHIVE, 0, qfalse },
+  { &wp_grappleTime,       "wp_grappleDamage", "10.0",   CVAR_ARCHIVE },
+
+#ifdef USE_ALT_FIRE
+  { &g_altGrapple,         "g_altGrapple",     "0",  CVAR_ARCHIVE | CVAR_SERVERINFO },
+#endif
+#endif
+
+#ifdef MISSIONPACK
+
+  { &wp_nailCycle,         "wp_nailCycle",         "1000", CVAR_ARCHIVE | CVAR_SERVERINFO },
+  { &wp_nailDamage,        "wp_nailDamage",        "20",   CVAR_ARCHIVE },
+  { &wp_nailSpeed,         "wp_nailSpeed",         "555",  CVAR_ARCHIVE },
+  { &wp_nailTime,          "wp_nailTime",          "10.0", CVAR_ARCHIVE },
+  // doesn't have a hit damage, only sticks and splashes
+  { &wp_proxCycle,         "wp_proxCycle",         "800",  CVAR_ARCHIVE | CVAR_SERVERINFO },
+  { &wp_proxDamage,        "wp_proxDamage",        "0",    CVAR_ARCHIVE },
+  { &wp_proxSplash,        "wp_proxSplash",        "100",  CVAR_ARCHIVE },
+  { &wp_proxRadius,        "wp_proxRadius",        "150",  CVAR_ARCHIVE },
+  { &wp_proxSpeed,         "wp_proxSpeed",         "700",  CVAR_ARCHIVE },
+  { &wp_proxTime,          "wp_proxTime",          "3.0",  CVAR_ARCHIVE },
+
+  { &wp_chainCycle,        "wp_chainCycle",        "30",   CVAR_ARCHIVE | CVAR_SERVERINFO },
+  { &wp_chainDamage,       "wp_chainDamage",       "7",    CVAR_ARCHIVE },
+#endif
+
+#ifdef USE_FLAME_THROWER
+  { &wp_flameCycle,        "wp_flameCycle",        "40",   CVAR_ARCHIVE | CVAR_SERVERINFO },
+  { &wp_flameDamage,       "wp_flameDamage",       "30",   CVAR_ARCHIVE },
+  { &wp_flameSplash,       "wp_flameSplash",       "25",   CVAR_ARCHIVE },
+  { &wp_flameRadius,       "wp_flameRadius",       "45",   CVAR_ARCHIVE },
+#endif
+
+#endif // end USE_WEAPON_VARS
+
+
+#ifdef USE_PORTALS
+  { &wp_portalEnable,     "wp_portalEnable",     "0",  CVAR_ARCHIVE | CVAR_SERVERINFO },
+#ifdef USE_ALT_FIRE
+  { &g_altPortal,          "g_altPortal",     "0",  CVAR_ARCHIVE | CVAR_SERVERINFO },
+#endif
+#endif
+
+
+#ifdef USE_PHYSICS_VARS
+#ifdef MISSIONPACK
+  { &g_scoutFactor, "g_scoutFactor", "1.5", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qtrue, qfalse },
+#endif
+  { &g_hasteFactor, "g_hasteFactor", "1.3", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qtrue, qfalse },
+  { &g_jumpVelocity, "g_jumpVelocity", "270", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qtrue, qfalse },
+  { &g_wallWalk, "g_wallWalk", "0.7", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qtrue, qfalse },
+#endif
+
+#ifdef USE_TEAM_VARS
+  { &g_flagReturn, "g_flagReturn", "30000", CVAR_ARCHIVE, 0, qfalse },
+#endif
+
+#ifdef USE_SERVER_ROLES
+	{ &g_callvotable, "g_callvotable", "map_restart map rotate nextmap "
+		"kick clientkick g_gametype g_unlagged g_warmup timelimit"
+		"fraglimit capturelimit", CVAR_ARCHIVE, 0, qfalse},
+#endif
+
+#if defined(USE_GAME_FREEZETAG) || defined(USE_REFEREE_CMDS)
+  { &g_thawTime, "g_thawTime", "180", CVAR_ARCHIVE, 0, qfalse },
+#endif
+
+#ifdef USE_INVULN_RAILS
+  { &g_railThruWalls, "g_railThruWalls", "1", CVAR_ARCHIVE, 0, qfalse },
+#endif
+#ifdef USE_HOMING_MISSILE
+  { &wp_rocketHoming, "wp_rocketHoming", "1", CVAR_ARCHIVE, 0, qfalse },
+#endif
+#ifdef USE_BOUNCE_RPG
+  { &wp_bfgBounce, "wp_bfgBounce", "1", CVAR_ARCHIVE, 0, qfalse },
+  { &wp_plasmaBounce, "wp_plasmaBounce", "1", CVAR_ARCHIVE, 0, qfalse },
+  { &wp_rocketBounce, "wp_rocketBounce", "1", CVAR_ARCHIVE, 0, qfalse },
+#endif
+#ifdef USE_BOUNCE_RAIL
+  { &wp_railBounce, "wp_railBounce", "1", CVAR_ARCHIVE, 0, qfalse },
+#endif
+#ifdef USE_CLOAK_CMD
+  { &g_enableCloak, "g_enableCloak", "1", CVAR_ARCHIVE, 0, qfalse },
+#endif
+#ifdef USE_VORTEX_GRENADES
+  { &g_clusterGrenades, "g_clusterGrenades", "0", CVAR_ARCHIVE, 0, qfalse },
+#endif
+#ifdef USE_VORTEX_GRENADES
+  { &g_vortexGrenades, "g_vortexGrenades", "0", CVAR_ARCHIVE, 0, qfalse },
+#endif
+#ifdef USE_VULN_RPG
+  { &wp_rocketVuln, "wp_rocketVuln", "1", CVAR_ARCHIVE, 0, qfalse },
+#endif
+#ifdef USE_ACCEL_RPG
+  { &wp_rocketAccel, "wp_rocketAccel", "1", CVAR_ARCHIVE, 0, qfalse },
+#endif
+#ifdef USE_WEAPON_DROP
+  { &g_dropWeapon, "g_dropWeapon", "65535", CVAR_ARCHIVE, 0, qfalse },
+#endif
+
+#ifdef USE_LOCAL_DMG
+  { &g_locDamage, "g_locDamage", "1", CVAR_ARCHIVE, 0, qfalse },
+#endif
+
+#ifdef USE_TRINITY
+  { &g_unholyTrinity, "g_unholyTrinity", "0", CVAR_ARCHIVE, 0, qfalse },
+#endif
+#ifdef USE_INSTAGIB
+  { &g_instagib, "g_instagib", "0", CVAR_ARCHIVE, 0, qfalse },
+#endif
+#ifdef USE_HOTRPG
+  { &g_hotRockets, "g_hotRockets", "0", CVAR_ARCHIVE, 0, qfalse },
+#endif
+#ifdef USE_HOTBFG
+  { &g_hotBFG, "g_hotBFG", "0", CVAR_ARCHIVE, 0, qfalse },
+#endif
+
+#ifdef USE_WEAPON_ORDER
+  { NULL, "g_supportsWeaponOrder", "1", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse }, //WarZone
+#endif
+
+#ifdef USE_GRAVITY_BOOTS
+  { &g_enableBoots, "g_enableBoots", "1", CVAR_ARCHIVE, 0, qfalse },
+#endif
 
 	{ &g_rotation, "g_rotation", "", CVAR_ARCHIVE, 0, qfalse }
 
@@ -192,7 +534,12 @@ This is the only way control passes into the module.
 This must be the very first function compiled into the .q3vm file
 ================
 */
-DLLEXPORT intptr_t vmMain( int command, int arg0, int arg1, int arg2 ) {
+#ifdef BUILD_GAME_STATIC
+intptr_t G_Call( int command, int arg0, int arg1, int arg2 )
+#else
+DLLEXPORT intptr_t vmMain( int command, int arg0, int arg1, int arg2 )
+#endif
+{
 	switch ( command ) {
 	case GAME_INIT:
 		G_InitGame( arg0, arg1, arg2 );
@@ -505,7 +852,7 @@ static void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	trap_Cvar_VariableStringBuffer( "//trap_GetValue", value, sizeof( value ) );
 	if ( value[0] ) {
 #ifdef Q3_VM
-		trap_GetValue = (void*)~atoi( value );
+		trap_GetValue = (void*)(int)~atoi( value );
 #else
 		dll_com_trapGetValue = atoi( value );
 #endif
@@ -660,7 +1007,7 @@ static void G_ShutdownGame( int restart )
 
 //===================================================================
 
-#ifndef GAME_HARD_LINKED
+#ifndef BUILD_GAME_STATIC
 // this is only here so the functions in q_shared.c and bg_*.c can link
 
 void QDECL Com_Error( int level, const char *fmt, ... ) {
@@ -1052,7 +1399,7 @@ void MoveClientToIntermission( gentity_t *ent ) {
 	client->ps.pm_type = PM_INTERMISSION;
 
 	// clean up powerup info
-	memset( client->ps.powerups, 0, sizeof( client->ps.powerups ) );
+	memset( ent->items, 0, sizeof( ent->items ) );
 
 	client->ps.eFlags = ( client->ps.eFlags & ~EF_PERSISTANT ) | ( client->ps.eFlags & EF_PERSISTANT );
 
@@ -1122,7 +1469,7 @@ void BeginIntermission( void ) {
 		AdjustTournamentScores();
 	}
 
-	level.intermissiontime = level.time;
+	level.intermissiontime = level.time;  
 	FindIntermissionPoint();
 
 	// move all clients to the intermission point
@@ -1135,6 +1482,10 @@ void BeginIntermission( void ) {
 		if ( client->health <= 0 ) {
 			respawn( client );
 		}
+    
+    // optimize bandwidth
+    client->r.svFlags |= SVF_SINGLECLIENT;
+    client->r.svFlags &= ~SVF_BROADCAST;
 
 		MoveClientToIntermission( client );
 	}
@@ -1605,7 +1956,7 @@ static void G_WarmupEnd( void )
 		client->ps.stats[STAT_CLIENTS_READY] = 0;
 		client->ps.stats[STAT_HOLDABLE_ITEM] = 0;
 
-		memset( &client->ps.powerups, 0, sizeof( client->ps.powerups ) );
+		memset( &level.gentities[i].items, 0, sizeof( level.gentities[i].items ) );
 
 		ClientUserinfoChanged( i ); // set max.health etc.
 

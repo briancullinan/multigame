@@ -63,7 +63,8 @@ vmCvar_t bot_nochat;
 vmCvar_t bot_testrchat;
 vmCvar_t bot_challenge;
 vmCvar_t bot_predictobstacles;
-vmCvar_t g_spSkill;
+vmCvar_t bot_spSkill;
+vmCvar_t bot_instagib;
 
 extern vmCvar_t bot_developer;
 
@@ -1575,7 +1576,12 @@ void BotChooseWeapon(bot_state_t *bs) {
 		trap_EA_SelectWeapon(bs->client, bs->weaponnum);
 	}
 	else {
-		newweaponnum = trap_BotChooseBestFightWeapon(bs->ws, bs->inventory);
+#ifdef USE_INSTAGIB
+    if(bot_instagib.integer)
+		  newweaponnum = WP_RAILGUN;
+    else
+#endif
+    newweaponnum = trap_BotChooseBestFightWeapon(bs->ws, bs->inventory);
 		if (bs->weaponnum != newweaponnum) bs->weaponchange_time = FloatTime();
 		bs->weaponnum = newweaponnum;
 		//BotAI_Print(PRT_MESSAGE, "bs->weaponnum = %d\n", bs->weaponnum);
@@ -1595,6 +1601,14 @@ void BotSetupForMovement(bot_state_t *bs) {
 	VectorCopy(bs->cur_ps.origin, initmove.origin);
 	VectorCopy(bs->cur_ps.velocity, initmove.velocity);
 	VectorClear(initmove.viewoffset);
+  
+#ifdef USE_GRAPPLE
+	// KILDEREAN : changed by Mr E to fix bot grapple
+	// VectorCopy(bs->cur_ps.origin, initmove.viewoffset);
+	VectorClear(initmove.viewoffset);
+	// END KILDEREAN
+#endif
+
 	initmove.viewoffset[2] += bs->cur_ps.viewheight;
 	initmove.entitynum = bs->entitynum;
 	initmove.client = bs->client;
@@ -1669,7 +1683,7 @@ void BotCheckItemPickup(bot_state_t *bs, int *oldinventory) {
 					//BotAI_BotInitialChat(bs, "wantoffence", NULL);
 					//trap_BotEnterChat(bs->cs, leader, CHAT_TELL);
 				}
-				else if (g_spSkill.integer <= 3) {
+				else if (bot_spSkill.integer <= 3) {
 					if ( bs->ltgtype != LTG_GETFLAG &&
 						 bs->ltgtype != LTG_ATTACKENEMYBASE &&
 						 bs->ltgtype != LTG_HARVEST ) {
@@ -1700,7 +1714,7 @@ void BotCheckItemPickup(bot_state_t *bs, int *oldinventory) {
 					//BotAI_BotInitialChat(bs, "wantdefence", NULL);
 					//trap_BotEnterChat(bs->cs, leader, CHAT_TELL);
 				}
-				else if (g_spSkill.integer <= 3) {
+				else if (bot_spSkill.integer <= 3) {
 					if ( bs->ltgtype != LTG_DEFENDKEYAREA ) {
 						//
 						if ((gametype != GT_CTF || (bs->redflagstatus == 0 && bs->blueflagstatus == 0)) &&
@@ -1727,7 +1741,7 @@ void BotCheckItemPickup(bot_state_t *bs, int *oldinventory) {
 BotUpdateInventory
 ==================
 */
-void BotUpdateInventory(bot_state_t *bs) {
+void BotUpdateInventory(bot_state_t *bs, int *items) {
 	int oldinventory[MAX_ITEMS];
 
 	memcpy(oldinventory, bs->inventory, sizeof(oldinventory));
@@ -1743,7 +1757,9 @@ void BotUpdateInventory(bot_state_t *bs) {
 	bs->inventory[INVENTORY_RAILGUN] = (bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_RAILGUN)) != 0;
 	bs->inventory[INVENTORY_PLASMAGUN] = (bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_PLASMAGUN)) != 0;
 	bs->inventory[INVENTORY_BFG10K] = (bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_BFG)) != 0;
+#ifdef USE_GRAPPLE
 	bs->inventory[INVENTORY_GRAPPLINGHOOK] = (bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_GRAPPLING_HOOK)) != 0;
+#endif
 #ifdef MISSIONPACK
 	bs->inventory[INVENTORY_NAILGUN] = (bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_NAILGUN)) != 0;;
 	bs->inventory[INVENTORY_PROXLAUNCHER] = (bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_PROX_LAUNCHER)) != 0;;
@@ -1772,22 +1788,22 @@ void BotUpdateInventory(bot_state_t *bs) {
 	bs->inventory[INVENTORY_PORTAL] = bs->cur_ps.stats[STAT_HOLDABLE_ITEM] == MODELINDEX_PORTAL;
 	bs->inventory[INVENTORY_INVULNERABILITY] = bs->cur_ps.stats[STAT_HOLDABLE_ITEM] == MODELINDEX_INVULNERABILITY;
 #endif
-	bs->inventory[INVENTORY_QUAD] = bs->cur_ps.powerups[PW_QUAD] != 0;
-	bs->inventory[INVENTORY_ENVIRONMENTSUIT] = bs->cur_ps.powerups[PW_BATTLESUIT] != 0;
-	bs->inventory[INVENTORY_HASTE] = bs->cur_ps.powerups[PW_HASTE] != 0;
-	bs->inventory[INVENTORY_INVISIBILITY] = bs->cur_ps.powerups[PW_INVIS] != 0;
-	bs->inventory[INVENTORY_REGEN] = bs->cur_ps.powerups[PW_REGEN] != 0;
-	bs->inventory[INVENTORY_FLIGHT] = bs->cur_ps.powerups[PW_FLIGHT] != 0;
+	bs->inventory[INVENTORY_QUAD] = items[ITEM_PW_MIN + PW_QUAD] != 0;
+	bs->inventory[INVENTORY_ENVIRONMENTSUIT] = items[ITEM_PW_MIN + PW_BATTLESUIT] != 0;
+	bs->inventory[INVENTORY_HASTE] = items[ITEM_PW_MIN + PW_HASTE] != 0;
+	bs->inventory[INVENTORY_INVISIBILITY] = items[ITEM_PW_MIN + PW_INVIS] != 0;
+	bs->inventory[INVENTORY_REGEN] = items[ITEM_PW_MIN + PW_REGEN] != 0;
+	bs->inventory[INVENTORY_FLIGHT] = items[ITEM_PW_MIN + PW_FLIGHT] != 0;
 #ifdef MISSIONPACK
 	bs->inventory[INVENTORY_SCOUT] = bs->cur_ps.stats[STAT_PERSISTANT_POWERUP] == MODELINDEX_SCOUT;
 	bs->inventory[INVENTORY_GUARD] = bs->cur_ps.stats[STAT_PERSISTANT_POWERUP] == MODELINDEX_GUARD;
 	bs->inventory[INVENTORY_DOUBLER] = bs->cur_ps.stats[STAT_PERSISTANT_POWERUP] == MODELINDEX_DOUBLER;
 	bs->inventory[INVENTORY_AMMOREGEN] = bs->cur_ps.stats[STAT_PERSISTANT_POWERUP] == MODELINDEX_AMMOREGEN;
 #endif
-	bs->inventory[INVENTORY_REDFLAG] = bs->cur_ps.powerups[PW_REDFLAG] != 0;
-	bs->inventory[INVENTORY_BLUEFLAG] = bs->cur_ps.powerups[PW_BLUEFLAG] != 0;
+	bs->inventory[INVENTORY_REDFLAG] = items[ITEM_PW_MIN + PW_REDFLAG] != 0;
+	bs->inventory[INVENTORY_BLUEFLAG] = items[ITEM_PW_MIN + PW_BLUEFLAG] != 0;
 #ifdef MISSIONPACK
-	bs->inventory[INVENTORY_NEUTRALFLAG] = bs->cur_ps.powerups[PW_NEUTRALFLAG] != 0;
+	bs->inventory[INVENTORY_NEUTRALFLAG] = items[ITEM_PW_MIN + PW_NEUTRALFLAG] != 0;
 	if (BotTeam(bs) == TEAM_RED) {
 		bs->inventory[INVENTORY_REDCUBE] = bs->cur_ps.generic1;
 		bs->inventory[INVENTORY_BLUECUBE] = 0;
@@ -2209,6 +2225,13 @@ BotAggression
 ==================
 */
 float BotAggression(bot_state_t *bs) {
+#ifdef USE_INSTAGIB
+  if(bot_instagib.integer) {
+    //if the enemy is located way higher than the bot
+    if (bs->inventory[ENEMY_HEIGHT] > 200) return 0;
+    return 95;
+  }
+#endif
 	//if the bot has quad
 	if (bs->inventory[INVENTORY_QUAD]) {
 		//if the bot is not holding the gauntlet or the enemy is really nearby
@@ -3215,7 +3238,7 @@ int BotTeamCubeCarrierVisible(bot_state_t *bs) {
 	float vis;
 	aas_entityinfo_t entinfo;
 
-	for (i = 0; i < maxclients; i++) {
+	for (i = 0; i < level.maxclients; i++) {
 		if (i == bs->client) continue;
 		//
 		BotEntityInfo(i, &entinfo);
@@ -3244,7 +3267,7 @@ int BotEnemyCubeCarrierVisible(bot_state_t *bs) {
 	float vis;
 	aas_entityinfo_t entinfo;
 
-	for (i = 0; i < maxclients; i++) {
+	for (i = 0; i < level.maxclients; i++) {
 		if (i == bs->client)
 			continue;
 		//
@@ -4198,6 +4221,10 @@ int BotGetActivateGoal(bot_state_t *bs, int entitynum, bot_activategoal_t *activ
 		BotAI_Print(PRT_ERROR, "BotGetActivateGoal: entity with model %s has no classname\n", model);
 		return 0;
 	}
+  // if it is a spawn point
+  if(!(strcmp(classname, "info_player_deathmatch"))) {
+    Com_Printf("spawn point\n");
+  }
 	//if it is a door
 	if (!strcmp(classname, "func_door")) {
 		if (trap_AAS_FloatForBSPEpairKey(ent, "health", &health)) {
@@ -5004,6 +5031,8 @@ void BotCheckEvents(bot_state_t *bs, entityState_t *state) {
 		case EV_FIRE_WEAPON:
 			//FIXME: either add to sound queue or mark player as someone making noise
 			break;
+    case EV_USE_ITEM:
+/*
 		case EV_USE_ITEM0:
 		case EV_USE_ITEM1:
 		case EV_USE_ITEM2:
@@ -5020,6 +5049,7 @@ void BotCheckEvents(bot_state_t *bs, entityState_t *state) {
 		case EV_USE_ITEM13:
 		case EV_USE_ITEM14:
 		case EV_USE_ITEM15:
+*/
 			break;
 	}
 }
@@ -5224,7 +5254,7 @@ void BotSetupAlternativeRouteGoals(void) {
 BotDeathmatchAI
 ==================
 */
-void BotDeathmatchAI(bot_state_t *bs, float thinktime) {
+void BotDeathmatchAI(bot_state_t *bs, int *items, float thinktime) {
 	char gender[144], name[144], buf[144];
 	char userinfo[MAX_INFO_STRING];
 	int i;
@@ -5266,7 +5296,7 @@ void BotDeathmatchAI(bot_state_t *bs, float thinktime) {
 		//set the teleport time
 		BotSetTeleportTime(bs);
 		//update some inventory values
-		BotUpdateInventory(bs);
+		BotUpdateInventory(bs, items);
 		//check out the snapshot
 		BotCheckSnapshot(bs);
 		//check for air
@@ -5418,7 +5448,8 @@ void BotSetupDeathmatchAI(void) {
 	trap_Cvar_Register(&bot_testrchat, "bot_testrchat", "0", 0);
 	trap_Cvar_Register(&bot_challenge, "bot_challenge", "0", 0);
 	trap_Cvar_Register(&bot_predictobstacles, "bot_predictobstacles", "1", 0);
-	trap_Cvar_Register(&g_spSkill, "g_spSkill", "2", 0);
+	trap_Cvar_Register(&bot_spSkill, "g_spSkill", "2", 0);
+  trap_Cvar_Register(&bot_instagib, "g_instagib", "0", 0);
 	//
 	if (gametype == GT_CTF) {
 		if (trap_BotGetLevelItemGoal(-1, "Red Flag", &ctf_redflag) < 0)
@@ -5477,4 +5508,3 @@ BotShutdownDeathmatchAI
 void BotShutdownDeathmatchAI(void) {
 	altroutegoals_setup = qfalse;
 }
-

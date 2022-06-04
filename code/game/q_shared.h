@@ -146,6 +146,117 @@
 
 //=============================================================
 
+#define BUILD_EXPERIMENTAL 1
+
+#ifdef BUILD_EXPERIMENTAL
+// mission pack features are enabled
+//#define MISSIONPACK 1
+// compile damage plums every time someone gets hit
+#define USE_DAMAGE_PLUMS 1
+// compile item timers, show how long until power-up respawns
+#define USE_ITEM_TIMERS 1
+// team variables modified
+#define USE_TEAM_VARS 1
+// physics variables, usually transfered from server to client
+#define USE_PHYSICS_VARS 1
+// use roles to allow admins to set votable cvars
+#define USE_SERVER_ROLES 1
+// allow referees to freeze players/TODO: rebalance teams
+#define USE_REFEREE_CMDS 1
+// enable freeze tag as a game mode in addition to the chosen CTF/Overload
+#define USE_GAME_FREEZETAG 1
+
+// advanced hud features like player looking in the same direction, 3D guns, etc
+#define USE_CLASSIC_HUD 1
+// advanced menu features like compatibility with other game VMs
+// can't enable these here because they require additional files, use Makefile.local
+//#define USE_CLASSIC_MENU 1
+
+// draw 3D weapons that rotate slightly
+#define USE_3D_WEAPONS 1
+// weapon vars allow customizing all weapon behavior
+#define USE_WEAPON_VARS 1
+// client side weapon order
+#define USE_WEAPON_ORDER 1
+// allow clients to center the weapons above the hud
+#define USE_WEAPON_CENTER 1
+// advanged damage changes based on where the player is shot
+#define USE_LOCAL_DMG 1
+// allow anti gravity boots commands to be used by clients
+#define USE_GRAVITY_BOOTS 1
+// enable ladders in map
+#define USE_LADDERS 1
+// advanced classes applies special properties to players based on model or selection
+#define USE_ADVANCED_CLASS 1
+// laser sight and flash light
+#define USE_LASER_SIGHT 1
+// advanced zoom stops zooming when the key is up and returns to original
+#define USE_ADVANCED_ZOOM 1
+// adds rotating doors from maps, UrT uses them, so does Quake 2
+#define USE_ROTATING_DOOR 1
+// show special messages and animation for headshots
+#define USE_HEADSHOTS 1
+// use alternate fire buttons
+#define USE_ALT_FIRE 1
+// cluster grenades create offspring every time they hit something
+#define USE_CLUSTER_GRENADES 1
+// homing rockets look for other people to track and change direction
+#define USE_HOMING_MISSILE 1
+// spreadfire weapon and powerup mod, sends lots of fire everywhere
+#define USE_WEAPON_SPREAD 1
+// unholy trinity mode, start with rocket, rails, lightning
+#define USE_TRINITY 1
+// instagib mode
+#define USE_INSTAGIB 1
+// enable the grappling hook
+#define USE_GRAPPLE 1
+// rpg accellerating missiles start slow and then speed up as they fly
+#define USE_ACCEL_RPG 1
+// allow clients to drop weapons, items, and powerups
+#define USE_WEAPON_DROP 1
+#define USE_ITEM_DROP 1
+#define USE_POWERUP_DROP 1
+#define USE_FLAG_DROP 1
+#define USE_AMMO_DROP 1
+#define USE_ARMOR_DROP 1
+#define USE_HEALTH_DROP 1
+// allow clients to specific bouncing rockets
+#define USE_BOUNCE_CMD 1
+// enable bouncing rpgs from map items or server enabled
+#define USE_BOUNCE_RPG 1
+// enable bouncing rail guns
+#define USE_BOUNCE_RAIL 1
+// enable cloaking command for clients to turn on infinite invisibility
+#define USE_CLOAK_CMD 1
+// enable lightening discharge that kills players in radius when used in water
+#define USE_LV_DISCHARGE 1
+// enable the flame thrower
+//#define USE_FLAME_THROWER 1
+// enable vortex grenades that suck players in when they are tossed
+#define USE_VORTEX_GRENADES 1
+// enable vulnerable rockets that can be shot down
+#define USE_VULN_RPG 1
+// enable rails that go through walls
+//#define USE_INVULN_RAILS 1
+// runes enable little popup powerups in random places on the map, over 60 different effects
+#define USE_RUNES 1
+// extra modes of death like MOD_VOID, MOD_RING_OUT and MOD_FROM_GRAVE
+#define USE_MODES_DEATH 1
+// hot rockets do no self-splash damage, infinite rockets, intagib on direct hits
+#define USE_HOTRPG 1
+// hot BFG better balance, infinite ammo
+#define USE_HOTBFG 1
+// enable portal gun, requires modified client
+#define USE_PORTALS 1
+// add single player features like earthquakes, player stopping, and animated models
+#define USE_SINGLEPLAYER 1
+// enable special multiworld features like cameras and portals
+#define USE_MULTIWORLD 1
+// 
+#endif
+
+
+
 typedef unsigned char 		byte;
 
 typedef enum { qfalse = 0, qtrue } qboolean;
@@ -164,6 +275,7 @@ typedef int		clipHandle_t;
 #define FS_INVALID_HANDLE 0
 #endif
 
+#define INFINITE			0x7FFF
 #define	MAX_QINT			0x7fffffff
 #define	MIN_QINT			(-MAX_QINT-1)
 
@@ -216,6 +328,10 @@ typedef enum {
 // these aren't needed by any of the VMs.  put in another header?
 //
 #define	MAX_MAP_AREA_BYTES		32		// bit vector of area visibility
+
+#ifdef USE_SERVER_ROLES
+#define MAX_CLIENT_ROLES 24
+#endif
 
 
 // print levels from renderer (FIXME: set up for game / cgame?)
@@ -536,6 +652,7 @@ float Q_acos(float c);
 int		Q_rand( int *seed );
 float	Q_random( int *seed );
 float	Q_crandom( int *seed );
+const char	*Q_stristr( const char *s, const char *find);
 
 #define random()	((rand () & 0x7fff) / ((float)0x7fff))
 #define crandom()	(2.0 * (random() - 0.5))
@@ -669,9 +786,15 @@ char *Q_CleanStr( char *string );
 
 //=============================================
 
+#ifndef BUILD_GAME_STATIC
 typedef intptr_t (*syscall_t)( intptr_t *parms );
 typedef intptr_t (QDECL *dllSyscall_t)( intptr_t callNum, ... );
 typedef void (QDECL *dllEntry_t)( dllSyscall_t syscallptr );
+#else
+intptr_t UI_DllSyscall( intptr_t callNum, ... );
+intptr_t CL_DllSyscall( intptr_t callNum, ... );
+intptr_t SV_DllSyscall( intptr_t callNum, ... );
+#endif
 
 //=============================================
 
@@ -683,15 +806,21 @@ char* QDECL va( const char *format, ... );
 // key / value info strings
 //
 char *Info_ValueForKey( const char *s, const char *key );
+#ifdef BUILD_GAME_STATIC
+#define Info_SetValueForKey( buf, key, value ) Info_SetValueForKey_s( (buf), MAX_INFO_STRING, (key), (value) )
+qboolean Info_SetValueForKey_s( char *s, int slen, const char *key, const char *value );
+#else
 qboolean Info_SetValueForKey( char *s, const char *key, const char *value );
+#endif
 qboolean Info_SetValueForKey_Big( char *s, const char *key, const char *value );
 qboolean Info_Validate( const char *s );
 qboolean Info_ValidateKeyValue( const char *s );
-const char *Info_NextPair( const char *s, char *key, char *value );
+void Info_NextPair( const char **s, char *key, char *value );
 
 // this is only here so the functions in q_shared.c and bg_*.c can link
 void	QDECL Com_Error( int level, const char *fmt, ... );
 void	QDECL Com_Printf( const char *fmt, ... );
+void	QDECL Com_DPrintf( const char *fmt, ... );
 
 /*
 ==========================================================
@@ -980,24 +1109,30 @@ typedef struct playerState_s {
 // usercmd_t->button bits, many of which are generated by the client system,
 // so they aren't game/cgame only definitions
 //
-#define	BUTTON_ATTACK		1
-#define	BUTTON_TALK			2			// displays talk balloon and disables actions
+#define	BUTTON_ATTACK		    1
+#define	BUTTON_TALK			    2			// displays talk balloon and disables actions
 #define	BUTTON_USE_HOLDABLE	4
-#define	BUTTON_GESTURE		8
-#define	BUTTON_WALKING		16			// walking can't just be infered from MOVE_RUN
+#define	BUTTON_GESTURE		  8
+#define	BUTTON_WALKING		  16			// walking can't just be infered from MOVE_RUN
 										// because a key pressed late in the frame will
 										// only generate a small move value for that frame
 										// walking will use different animations and
 										// won't generate footsteps
 #define BUTTON_AFFIRMATIVE	32
-#define	BUTTON_NEGATIVE		64
+#define	BUTTON_NEGATIVE		  64
 
-#define BUTTON_GETFLAG		128
-#define BUTTON_GUARDBASE	256
-#define BUTTON_PATROL		512
-#define BUTTON_FOLLOWME		1024
+#define BUTTON_GETFLAG		  128
+#define BUTTON_GUARDBASE	  256
+#define BUTTON_PATROL		    512
+#define BUTTON_FOLLOWME		  1024
 
-#define	BUTTON_ANY			2048			// any key whatsoever
+#define	BUTTON_ANY			    2048			// any key whatsoever
+#ifdef USE_ALT_FIRE
+#define BUTTON_ALT_ATTACK	  0x1000      // button3
+#define BUTTON_ALT_2        0x2000      // button4
+#define BUTTON_ALT_3        0x4000      // button5
+#define BUTTON_ALT_4        0x8000      // button6
+#endif
 
 #define	MOVE_RUN			120			// if forwardmove or rightmove are >= MOVE_RUN,
 										// then BUTTON_WALKING should be set
@@ -1023,6 +1158,9 @@ typedef enum {
 	TR_LINEAR_STOP,
 	TR_SINE,					// value = base + sin( time / duration ) * delta
 	TR_GRAVITY
+#ifdef USE_ACCEL_RPG
+  ,TR_ACCEL
+#endif
 } trType_t;
 
 typedef struct {

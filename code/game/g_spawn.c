@@ -96,6 +96,9 @@ const field_t fields[] = {
 	{"angle", FOFS(s.angles), F_ANGLEHACK},
 	{"targetShaderName", FOFS(targetShaderName), F_LSTRING},
 	{"targetShaderNewName", FOFS(targetShaderNewName), F_LSTRING},
+#ifdef USE_ROTATING_DOOR
+  {"distance", FOFS(distance), F_FLOAT},	// VALKYRIE: for rotating doors
+#endif
 
 	{NULL}
 };
@@ -144,7 +147,12 @@ void SP_target_kill (gentity_t *ent);
 void SP_target_position (gentity_t *ent);
 void SP_target_location (gentity_t *ent);
 void SP_target_push (gentity_t *ent);
+void SP_target_exec (gentity_t *ent);
 
+#ifdef USE_SINGLEPLAYER
+void SP_target_earthquake (gentity_t *ent);
+void SP_target_player_stop (gentity_t *ent);
+#endif
 void SP_light (gentity_t *self);
 void SP_info_null (gentity_t *self);
 void SP_info_notnull (gentity_t *self);
@@ -171,7 +179,11 @@ void SP_team_blueobelisk( gentity_t *ent );
 void SP_team_redobelisk( gentity_t *ent );
 void SP_team_neutralobelisk( gentity_t *ent );
 #endif
-void SP_item_botroam( gentity_t *ent ) {};
+void SP_item_botroam( gentity_t *ent ) {}
+
+#ifdef USE_ROTATING_DOOR
+void SP_func_door_rotating( gentity_t *ent );	// VALKYRIE: for rotating doors
+#endif
 
 spawn_t	spawns[] = {
 	// info entities don't do anything at all, but provide positional
@@ -220,7 +232,12 @@ spawn_t	spawns[] = {
 	{"target_position", SP_target_position},
 	{"target_location", SP_target_location},
 	{"target_push", SP_target_push},
+	{"target_exec", SP_target_exec},
 
+#ifdef USE_SINGLEPLAYER // entity
+	{"target_earthquake", SP_target_earthquake},
+	{"target_player_stop", SP_target_player_stop},
+#endif
 	{"light", SP_light},
 	{"path_corner", SP_path_corner},
 
@@ -245,6 +262,10 @@ spawn_t	spawns[] = {
 	{"team_neutralobelisk", SP_team_neutralobelisk},
 #endif
 	{"item_botroam", SP_item_botroam},
+
+#ifdef USE_ROTATING_DOOR
+  {"func_door_rotating", SP_func_door_rotating},	// VALKYRIE: for rotating doors
+#endif
 
 	{0, 0}
 };
@@ -585,8 +606,8 @@ void SP_worldspawn( void ) {
 	g_entities[ENTITYNUM_NONE].classname = "nothing";
 
 	// see if we want a warmup time
-	if ( /*g_restarted.integer ||*/ g_gametype.integer == GT_SINGLE_PLAYER ) {
-		//trap_Cvar_Set( "g_restarted", "0" );
+	if ( g_restarted.integer || g_gametype.integer == GT_SINGLE_PLAYER ) {
+		trap_Cvar_Set( "g_restarted", "0" );
 		level.warmupTime = 0;
 		trap_SetConfigstring( CS_WARMUP, "" );
 	} else {

@@ -12,7 +12,11 @@ sfxHandle_t menu_move_sound;
 sfxHandle_t menu_out_sound;
 sfxHandle_t menu_buzz_sound;
 sfxHandle_t menu_null_sound;
+#ifndef MISSIONPACK
 sfxHandle_t weaponChangeSound;
+#else
+extern sfxHandle_t weaponChangeSound;
+#endif
 
 static qhandle_t	sliderBar;
 static qhandle_t	sliderButton_0;
@@ -1324,7 +1328,7 @@ void Menu_AddItem( menuframework_s *menu, void *item )
 	menu->items[menu->nitems] = item;
 	((menucommon_s*)menu->items[menu->nitems])->parent        = menu;
 	((menucommon_s*)menu->items[menu->nitems])->menuPosition  = menu->nitems;
-	((menucommon_s*)menu->items[menu->nitems])->flags        &= ~QMF_HASMOUSEFOCUS;
+	((menucommon_s*)menu->items[menu->nitems])->flags        &= (unsigned int)~QMF_HASMOUSEFOCUS;
 
 	// perform any item specific initializations
 	itemptr = (menucommon_s*)item;
@@ -1565,7 +1569,8 @@ void Menu_Draw( menuframework_s *menu )
 					break;
 
 				default:
-					trap_Error( va("Menu_Draw: unknown type %d", itemptr->type) );
+					Com_Printf( "Menu_Draw: unknown type %d - %s\n", itemptr->type, (menutext_s*)itemptr->name );
+					break;
 			}
 		}
 #ifndef NDEBUG
@@ -1793,5 +1798,8 @@ void Menu_Cache( void )
 	sliderBar = trap_R_RegisterShaderNoMip( "menu/art/slider2" );
 	sliderButton_0 = trap_R_RegisterShaderNoMip( "menu/art/sliderbutt_0" );
 	sliderButton_1 = trap_R_RegisterShaderNoMip( "menu/art/sliderbutt_1" );
+	if(Q_stristr(ui_lazyLoad.string, "crosshair")) {
+		Preferences_Cache();
+	}
 }
 	

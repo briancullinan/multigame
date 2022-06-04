@@ -220,10 +220,10 @@ static void UI_SPLevelMenu_SetMenuArena( int n, int level, const char *arenaInfo
 		levelMenuInfo.item_maps[n].generic.flags |= QMF_GRAYED;
 	}
 	else {
-		levelMenuInfo.item_maps[n].generic.flags &= ~QMF_GRAYED;
+		levelMenuInfo.item_maps[n].generic.flags &= (unsigned int)~QMF_GRAYED;
 	}
 
-	levelMenuInfo.item_maps[n].generic.flags &= ~QMF_INACTIVE;
+	levelMenuInfo.item_maps[n].generic.flags &= (unsigned int)~QMF_INACTIVE;
 }
 
 static void UI_SPLevelMenu_SetMenuItems( void ) {
@@ -310,14 +310,14 @@ static void UI_SPLevelMenu_SetMenuItems( void ) {
 		levelMenuInfo.item_leftarrow.generic.flags |= ( QMF_INACTIVE | QMF_HIDDEN );
 	}
 	else {
-		levelMenuInfo.item_leftarrow.generic.flags &= ~( QMF_INACTIVE | QMF_HIDDEN );
+		levelMenuInfo.item_leftarrow.generic.flags &= (unsigned int)~( QMF_INACTIVE | QMF_HIDDEN );
 	}
 
 	if ( selectedArenaSet == maxTier ) {
 		levelMenuInfo.item_rightarrow.generic.flags |= ( QMF_INACTIVE | QMF_HIDDEN );
 	}
 	else {
-		levelMenuInfo.item_rightarrow.generic.flags &= ~( QMF_INACTIVE | QMF_HIDDEN );
+		levelMenuInfo.item_rightarrow.generic.flags &= (unsigned int)~( QMF_INACTIVE | QMF_HIDDEN );
 	}
 
 	UI_SPLevelMenu_SetBots();
@@ -651,6 +651,8 @@ UI_SPLevelMenu_Cache
 void UI_SPLevelMenu_Cache( void ) {
 	int				n;
 
+	Menu_Cache();
+
 	trap_R_RegisterShaderNoMip( ART_LEVELFRAME_FOCUS );
 	trap_R_RegisterShaderNoMip( ART_LEVELFRAME_SELECTED );
 	trap_R_RegisterShaderNoMip( ART_ARROW );
@@ -706,6 +708,7 @@ static void UI_SPLevelMenu_Init( void ) {
 	levelMenuInfo.menu.fullscreen = qtrue;
 	levelMenuInfo.menu.wrapAround = qtrue;
 	levelMenuInfo.menu.draw = UI_SPLevelMenu_MenuDraw;
+	levelMenuInfo.menu.init = UI_SPLevelMenu_Cache;
 
 	UI_SPLevelMenu_Cache();
 
@@ -908,6 +911,7 @@ static void UI_SPLevelMenu_Init( void ) {
 	UI_SPLevelMenu_SetMenuItems();
 }
 
+void UI_LoadArenas(void);
 
 /*
 =================
@@ -918,6 +922,8 @@ void UI_SPLevelMenu( void ) {
 	int			level;
 	int			trainingLevel;
 	const char	*arenaInfo;
+
+	//UI_LoadArenas();
 
 	trainingTier = -1;
 	arenaInfo = UI_GetSpecialArenaInfo( "training" );

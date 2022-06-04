@@ -50,15 +50,15 @@ void Use_target_remove_powerups( gentity_t *ent, gentity_t *other, gentity_t *ac
 		return;
 	}
 
-	if( activator->client->ps.powerups[PW_REDFLAG] ) {
+	if( activator->items[ITEM_PW_MIN + PW_REDFLAG] ) {
 		Team_ReturnFlag( TEAM_RED );
-	} else if( activator->client->ps.powerups[PW_BLUEFLAG] ) {
+	} else if( activator->items[ITEM_PW_MIN + PW_BLUEFLAG] ) {
 		Team_ReturnFlag( TEAM_BLUE );
-	} else if( activator->client->ps.powerups[PW_NEUTRALFLAG] ) {
+	} else if( activator->items[ITEM_PW_MIN + PW_NEUTRALFLAG] ) {
 		Team_ReturnFlag( TEAM_FREE );
 	}
 
-	memset( activator->client->ps.powerups, 0, sizeof( activator->client->ps.powerups ) );
+	memset( activator->items, 0, sizeof( activator->items ) );
 }
 
 void SP_target_remove_powerups( gentity_t *ent ) {
@@ -452,3 +452,83 @@ void SP_target_location( gentity_t *self ){
 	G_SetOrigin( self, self->s.origin );
 }
 
+char target_execs[10][MAX_QPATH]; // max of 10 level change entities per level
+int num_target_execs=0;
+
+void target_use_exec( gentity_t *self, gentity_t *other, gentity_t *activator ) {
+	//char buf[MAX_QPATH];
+	//char *nx= target_execs[self->health];
+
+	G_Printf("using exec: %s", self->message);
+	if((self->spawnflags & 4)) {
+		trap_SendServerCommand( -1, va("%s", self->message ));
+		return;
+	}
+	trap_SendConsoleCommand( EXEC_APPEND, va("%s\n", self->message ) );
+}
+
+void SP_target_exec( gentity_t *self ) {
+	char *buf;
+	char *nx=target_execs[num_target_execs];
+
+	self->health=num_target_execs;
+	G_SpawnString( "message", "print no command", &buf);
+	G_Printf("mapCommand (%d): %s\n",num_target_execs,buf);
+	Com_sprintf(nx,sizeof(target_execs[0]),"%s",buf);
+	self->use = target_use_exec;
+	num_target_execs++;
+} 
+#ifdef USE_SINGLEPLAYER // entity
+/*QUAKED target_earthquake (1 0 0) (-16 -16 -24) (16 16 32)
+starts earthquake
+"length" - length in  seconds (2-32, in steps of 2)
+"intensity" - strength of earthquake (1-16)
+*/
+
+void target_earthquake( gentity_t *self, gentity_t *other, gentity_t *activator ) {
+	G_AddEvent(self, EV_EARTHQUAKE, self->s.generic1);
+}
+
+void SP_target_earthquake( gentity_t *self ) {
+	int param;
+	float length;		// length in seconds (2 to 32)
+	float intensity;	// intensity (1 to 16)
+	int length_;
+	int intensity_;
+	// read parameters
+	G_SpawnFloat( "length", "1000", &length);
+	G_SpawnFloat( "intensity", "50", &intensity);
+	if (length<2) length=2;
+	if (length>32) length=32;
+	if (intensity<1) intensity=1;
+	if (intensity>16) intensity=16;
+	// adjust parameters
+	length_ =  ((int)(length) - 2)/2;
+	intensity_ = (int)intensity-1;
+	param = ( intensity_ | (length_<<4) );
+	self->s.generic1=param;
+	self->use = target_earthquake;
+	self->s.eType = ET_EVENTS;
+	trap_LinkEntity (self);
+}
+
+/*QUAKED target_player_stop (1 0 0) (-16 -16 -24) (16 16 32)
+stops player for "wait"*2 seconds
+*/
+
+void target_player_stop( gentity_t *self, gentity_t *other, gentity_t *activator ) {
+	activator->stop_event=level.time+((int)(self->wait) & 0x7F)*2000;
+	G_AddEvent(activator, EV_PLAYERSTOP, self->wait);
+}
+
+void SP_target_player_stop( gentity_t *self ) {
+	G_SpawnFloat( "wait", "1", &self->wait);
+	if (self->spawnflags & 1)
+	{
+		if (self->wait>127)
+			self->wait=127;
+		self->wait  += 128;
+	}
+	self->use = target_player_stop;
+}
+#endif

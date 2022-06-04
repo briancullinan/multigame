@@ -19,6 +19,15 @@ Targets will be fired when someone spawns in on them.
 void SP_info_player_deathmatch( gentity_t *ent ) {
 	int		i;
 
+	char *s;
+	int arena;
+	G_SpawnString( "targetname", "", &s );
+	if(!ent->targetname) {
+		G_SpawnInt("arena", "0", &arena);
+		if(arena) {
+			ent->targetname = va("arena_%i", arena);
+		}
+	}
 	G_SpawnInt( "nobots", "0", &i);
 	if ( i ) {
 		ent->flags |= FL_NO_BOTS;
@@ -404,6 +413,12 @@ void CopyToBodyQue( gentity_t *ent ) {
 		body->takedamage = qtrue;
 	}
 
+#ifdef USE_HEADSHOTS
+  if(ent->client->lasthurt_mod == MOD_HEADSHOT)
+	  G_AddEvent( body, EV_BODY_NOHEAD, 0 );
+#endif
+
+
 	VectorCopy ( body->s.pos.trBase, body->r.currentOrigin );
 	trap_LinkEntity( body );
 }
@@ -643,7 +658,7 @@ qboolean ClientUserinfoChanged( int clientNum ) {
 
 	// set max health
 #ifdef MISSIONPACK
-	if (client->ps.powerups[PW_GUARD]) {
+	if (ent->items[ITEM_PW_MIN + PW_GUARD]) {
 		client->pers.maxHealth = HEALTH_SOFT_LIMIT*2;
 	} else {
 		health = atoi( Info_ValueForKey( userinfo, "handicap" ) );
@@ -685,6 +700,20 @@ qboolean ClientUserinfoChanged( int clientNum ) {
 	// set model
 	Q_strncpyz( model, Info_ValueForKey( userinfo, "model" ), sizeof( model ) );
 	Q_strncpyz( headModel, Info_ValueForKey( userinfo, "headmodel" ), sizeof( headModel ) );
+
+#ifdef USE_ADVANCED_CLASS
+  if (!Q_stricmp (model, "biker/red"))
+     client->pers.newplayerclass = PCLASS_BFG;
+  else if (!Q_stricmp (model, "anarki/blue"))
+     client->pers.newplayerclass = PCLASS_LIGHTNING;
+  else if (!Q_stricmp (model, "grunt/red"))
+     client->pers.newplayerclass = PCLASS_RAILGUN;
+  else {
+     client->pers.newplayerclass = PCLASS_BFG;
+     Q_strncpyz( model, "biker/red", sizeof( model ) );
+  }
+  client->pers.playerclass = client->pers.newplayerclass;
+#endif
 
 	// team task (0 = none, 1 = offence, 2 = defence)
 	teamTask = atoi(Info_ValueForKey(userinfo, "teamtask"));
@@ -830,6 +859,8 @@ const char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 		ent->r.svFlags |= SVF_BOT;
 		client->sess.spectatorClient = clientNum;
 	}
+  ent->r.svFlags |= SVF_BROADCAST;
+  ent->r.svFlags &= ~SVF_SINGLECLIENT;
 	ent->inuse = qtrue;
 
 	// get and distribute relevant paramters
@@ -873,7 +904,6 @@ and on transition between teams, but doesn't happen on respawns
 void ClientBegin( int clientNum ) {
 	gentity_t	*ent;
 	gclient_t	*client;
-	gentity_t	*tent;
 	int			flags;
 	int			spawns;
 
@@ -919,8 +949,7 @@ void ClientBegin( int clientNum ) {
 
 	if ( client->sess.sessionTeam != TEAM_SPECTATOR ) {
 		// send event
-		tent = G_TempEntity( client->ps.origin, EV_PLAYER_TELEPORT_IN );
-		tent->s.clientNum = ent->s.clientNum;
+    G_AddEvent(ent, EV_PLAYER_TELEPORT_IN, 0);
 
 		client->sess.spectatorTime = 0;
 
@@ -1076,11 +1105,18 @@ void ClientSpawn(gentity_t *ent) {
 		ent->r.contents = CONTENTS_BODY;
 		ent->clipmask = MASK_PLAYERSOLID;
 	}
+#ifdef USE_DAMAGE_PLUMS
+  ent->pain = player_pain;
+#endif
 	ent->die = player_die;
 	ent->waterlevel = 0;
 	ent->watertype = 0;
 	ent->flags = 0;
-	
+
+#ifdef USE_ADVANCED_CLASS
+  client->pers.playerclass = client->pers.newplayerclass;  
+#endif
+
 	VectorCopy (playerMins, ent->r.mins);
 	VectorCopy (playerMaxs, ent->r.maxs);
 
@@ -1093,12 +1129,101 @@ void ClientSpawn(gentity_t *ent) {
 		client->ps.ammo[WP_MACHINEGUN] = 100;
 	}
 
+#ifdef USE_ADVANCED_CLASS
+  //assign weapons according to class
+  switch (client->pers.playerclass){
+  case PCLASS_BFG:
+    client->ps.stats[STAT_WEAPONS] |= ( 1 << WP_BFG );
+    client->ps.ammo[WP_BFG] = 20;
+    break;
+  case PCLASS_LIGHTNING:
+    client->ps.stats[STAT_WEAPONS] |= ( 1 << WP_LIGHTNING );
+    client->ps.ammo[WP_LIGHTNING] = 60;
+    break;
+  case PCLASS_RAILGUN:
+  default:
+    client->ps.stats[STAT_WEAPONS] |= ( 1 << WP_RAILGUN );
+    client->ps.ammo[WP_RAILGUN] = 20;
+    break;
+  }
+#endif
+
 	client->ps.stats[STAT_WEAPONS] |= ( 1 << WP_GAUNTLET );
-	client->ps.ammo[WP_GAUNTLET] = -1;
-	client->ps.ammo[WP_GRAPPLING_HOOK] = -1;
+  client->ps.ammo[WP_GAUNTLET] = -1;
+
+#ifdef USE_FLAME_THROWER
+  //Spawn player with flame thrower
+  client->ps.stats[STAT_WEAPONS] |= ( 1 << WP_FLAME_THROWER );
+  client->ps.ammo[WP_FLAME_THROWER] = 999;
+#endif
+
+#ifdef USE_INSTAGIB
+  if(g_instagib.integer) {
+    client->ps.stats[STAT_WEAPONS] = ( 1 << WP_RAILGUN );
+    // bots don't seem to like -1 as ammo amount, maybe this can be fixed
+    //   during advanced grapple hook tutorial.
+    client->ps.ammo[WP_RAILGUN] = INFINITE;  
+  }
+#endif
+
+#ifdef USE_TRINITY
+if(g_unholyTrinity.integer) {
+  client->ps.stats[STAT_WEAPONS] = ( 1 << WP_RAILGUN ) | ( 1 << WP_LIGHTNING ) | ( 1 << WP_ROCKET_LAUNCHER );
+  client->ps.ammo[WP_RAILGUN] = INFINITE;  
+  client->ps.ammo[WP_LIGHTNING] = INFINITE;  
+  client->ps.ammo[WP_ROCKET_LAUNCHER] = INFINITE;  
+}
+#endif
+#ifdef USE_HOTRPG
+if(g_hotRockets.integer) {
+  client->ps.stats[STAT_WEAPONS] = ( 1 << WP_ROCKET_LAUNCHER );
+  client->ps.ammo[WP_ROCKET_LAUNCHER] = INFINITE;  
+}
+#endif
+#ifdef USE_HOTBFG
+if(g_hotBFG.integer) {
+  int handicap, max;
+  client->ps.stats[STAT_WEAPONS] = ( 1 << WP_BFG );
+  client->ps.ammo[WP_BFG] = INFINITE;  
+  trap_GetUserinfo( client - level.clients, userinfo, sizeof(userinfo) );
+  handicap = atof( Info_ValueForKey( userinfo, "handicap" ) );
+  if( handicap<=0.0f || handicap>100.0f) {
+    handicap = 100.0f;
+  }
+  max = (int)(2 *  handicap);
+  ent->health = max;
+  client->ps.stats[STAT_HEALTH] = max;
+  client->ps.stats[STAT_MAX_HEALTH] = max;
+}
+#endif
+#ifdef USE_PORTALS
+  if(wp_portalEnable.integer && !g_hotBFG.integer) {
+    // in alt-fire mode, both ends reset with right click
+    // otherwise, use BFG left and right click for both ends
+    client->ps.stats[STAT_WEAPONS] |= ( 1 << WP_BFG );
+    client->ps.ammo[WP_BFG] = INFINITE;  
+  }
+#endif
+#if defined(USE_GRAPPLE) && defined(USE_WEAPON_VARS)
+  if(wp_grappleEnable.integer 
+#ifdef USE_ALT_FIRE
+    && !g_altGrapple.integer
+#endif
+  ) {
+    client->ps.stats[STAT_WEAPONS] |= ( 1 << WP_GRAPPLING_HOOK );
+    client->ps.ammo[WP_GRAPPLING_HOOK] = -1;
+  }
+#endif
+
 
 	// health will count down towards max_health
 	ent->health = client->ps.stats[STAT_HEALTH] = client->ps.stats[STAT_MAX_HEALTH] + 25;
+
+#ifdef USE_LOCAL_DMG
+  // return to normal speed, McBain
+  client->ps.speed = g_speed.value;
+  client->lasthurt_location = LOCATION_NONE;
+#endif
 
 	G_SetOrigin( ent, spawn_origin );
 	VectorCopy( spawn_origin, client->ps.origin );
@@ -1140,7 +1265,7 @@ void ClientSpawn(gentity_t *ent) {
 		// select the highest weapon number available, after any
 		// spawn given items have fired
 		client->ps.weapon = 1;
-		for ( i = WP_NUM_WEAPONS - 1 ; i > 0 ; i-- ) {
+		for ( i = WP_NUM_WEAPONS - 2 ; i > 0 ; i-- ) {
 			if ( client->ps.stats[STAT_WEAPONS] & ( 1 << i ) ) {
 				client->ps.weapon = i;
 				break;
@@ -1231,6 +1356,7 @@ void ClientDisconnect( int clientNum ) {
 	}
 
 	trap_UnlinkEntity( ent );
+  ent->r.svFlags &= ~SVF_BROADCAST;
 	ent->s.modelindex = 0;
 	ent->inuse = qfalse;
 	ent->classname = "disconnected";

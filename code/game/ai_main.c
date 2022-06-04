@@ -166,6 +166,14 @@ qboolean BotAI_GetEntityState( int entityNum, entityState_t *state ) {
 
 	ent = g_entities + entityNum;
 
+  // go for respawn points to look for enemies
+  if(ent->inuse 
+    && Q_stricmp(ent->classname, "info_player_deathmatch") == 0) {
+    Com_Printf("getting respawn\n");
+    memcpy( state, &ent->s, sizeof(entityState_t) );
+  	return qtrue;
+  }
+
 	if ( !ent->inuse || !ent->r.linked ) {
 		memset( state, 0, sizeof( entityState_t ) );
 		return qfalse;
@@ -969,12 +977,14 @@ BotAI
 */
 int BotAI(int client, float thinktime) {
 	bot_state_t *bs;
+  int *items;
 	char buf[1024], *args;
 	int j;
 
 	trap_EA_ResetInput(client);
 	//
 	bs = botstates[client];
+  items = g_entities[client].items;
 	if (!bs || !bs->inuse) {
 		BotAI_Print(PRT_FATAL, "BotAI: client %d is not setup\n", client);
 		return qfalse;
@@ -1047,7 +1057,7 @@ int BotAI(int client, float thinktime) {
 	//get the area the bot is in
 	bs->areanum = BotPointAreaNum(bs->origin);
 	//the real AI
-	BotDeathmatchAI(bs, thinktime);
+	BotDeathmatchAI(bs, items, thinktime);
 	//set the weapon selection every AI frame
 	trap_EA_SelectWeapon(bs->client, bs->weaponnum);
 	//subtract the delta angles
@@ -1401,6 +1411,7 @@ int BotAIStartFrame(int time) {
 
 	G_CheckBotSpawn();
 
+  trap_Cvar_Update(&bot_instagib);
 	trap_Cvar_Update(&bot_rocketjump);
 	trap_Cvar_Update(&bot_grapple);
 	trap_Cvar_Update(&bot_fastchat);
@@ -1478,7 +1489,9 @@ int BotAIStartFrame(int time) {
 		ent = g_entities;
 		for ( i = 0; i < level.num_entities; i++, s++, ent++ ) {
 			ent = &g_entities[i];
-			if ( !ent->inuse || !ent->r.linked || ent->r.svFlags & SVF_NOCLIENT ) {
+			if ( !ent->inuse 
+        || (Q_stricmp(ent->classname, "info_player_deathmatch") != 0
+        && (!ent->r.linked || (ent->r.svFlags & SVF_NOCLIENT))) ) {
 				if ( *s == qfalse ) {
 					*s = qtrue;
 					trap_BotLibUpdateEntity( i, NULL );
@@ -1486,7 +1499,11 @@ int BotAIStartFrame(int time) {
 				continue;
 			}
 			// do not update missiles
-			if ( ent->s.eType == ET_MISSILE && ent->s.weapon != WP_GRAPPLING_HOOK ) {
+			if ( ent->s.eType == ET_MISSILE 
+#ifdef USE_GRAPPLE
+        && ent->s.weapon != WP_GRAPPLING_HOOK 
+#endif
+      ) {
 				if ( *s == qfalse ) {
 					*s = qtrue;
 					trap_BotLibUpdateEntity( i, NULL );
@@ -1532,7 +1549,7 @@ int BotAIStartFrame(int time) {
 			state.frame = ent->s.frame;
 			state.event = ent->s.event;
 			state.eventParm = ent->s.eventParm;
-			state.powerups = ent->s.powerups;
+			//state.powerups = ent->s.powerups;
 			state.legsAnim = ent->s.legsAnim;
 			state.torsoAnim = ent->s.torsoAnim;
 			state.weapon = ent->s.weapon;
@@ -1743,4 +1760,3 @@ int BotAIShutdown( int restart ) {
 	}
 	return qtrue;
 }
-

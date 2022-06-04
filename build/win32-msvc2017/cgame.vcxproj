@@ -254,6 +254,8 @@
     <ClCompile Include="..\..\code\game\bg_misc.c" />
     <ClCompile Include="..\..\code\game\bg_pmove.c" />
     <ClCompile Include="..\..\code\game\bg_slidemove.c" />
+    <ClCompile Include="..\..\code\game\bg_tracemap.c" />
+    <ClCompile Include="..\..\code\cgame\cg_atmospheric.c" />
     <ClCompile Include="..\..\code\cgame\cg_consolecmds.c" />
     <ClCompile Include="..\..\code\cgame\cg_draw.c" />
     <ClCompile Include="..\..\code\cgame\cg_drawtools.c" />
@@ -267,6 +269,7 @@
     <ClCompile Include="..\..\code\cgame\cg_players.c" />
     <ClCompile Include="..\..\code\cgame\cg_playerstate.c" />
     <ClCompile Include="..\..\code\cgame\cg_predict.c" />
+    <ClCompile Include="..\..\code\cgame\cg_polybus.c" />
     <ClCompile Include="..\..\code\cgame\cg_scoreboard.c" />
     <ClCompile Include="..\..\code\cgame\cg_servercmds.c" />
     <ClCompile Include="..\..\code\cgame\cg_snapshot.c" />

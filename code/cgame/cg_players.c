@@ -548,7 +548,7 @@ static qboolean CG_RegisterClientModelname( clientInfo_t *ci, const char *modelN
 		Com_sprintf( filename, sizeof( filename ), "models/players/characters/%s/lower.md3", modelName );
 		ci->legsModel = trap_R_RegisterModel( filename );
 		if ( !ci->legsModel ) {
-			Com_Printf( "Failed to load model file %s\n", filename );
+			Com_DPrintf( "Failed to load model file %s\n", filename );
 			return qfalse;
 		}
 	}
@@ -559,7 +559,7 @@ static qboolean CG_RegisterClientModelname( clientInfo_t *ci, const char *modelN
 		Com_sprintf( filename, sizeof( filename ), "models/players/characters/%s/upper.md3", modelName );
 		ci->torsoModel = trap_R_RegisterModel( filename );
 		if ( !ci->torsoModel ) {
-			Com_Printf( "Failed to load model file %s\n", filename );
+			Com_DPrintf( "Failed to load model file %s\n", filename );
 			return qfalse;
 		}
 	}
@@ -577,7 +577,7 @@ static qboolean CG_RegisterClientModelname( clientInfo_t *ci, const char *modelN
 		ci->headModel = trap_R_RegisterModel( filename );
 	}
 	if ( !ci->headModel ) {
-		Com_Printf( "Failed to load model file %s\n", filename );
+		Com_DPrintf( "Failed to load model file %s\n", filename );
 		return qfalse;
 	}
 
@@ -614,11 +614,17 @@ static qboolean CG_RegisterClientModelname( clientInfo_t *ci, const char *modelN
 	if ( CG_FindClientHeadFile( filename, sizeof(filename), ci, teamName, headName, headSkinName, "icon", "skin" ) ) {
 		ci->modelIcon = trap_R_RegisterShaderNoMip( filename );
 	}
-	else if ( CG_FindClientHeadFile( filename, sizeof(filename), ci, teamName, headName, headSkinName, "icon", "tga" ) ) {
-		ci->modelIcon = trap_R_RegisterShaderNoMip( filename );
-	}
 
 	if ( !ci->modelIcon ) {
+		CG_FindClientHeadFile( filename, sizeof(filename), ci, teamName, headName, headSkinName, "icon", "tga" );
+		ci->modelIcon = trap_R_RegisterShaderNoMip( filename );
+	}
+	//else if ( CG_FindClientHeadFile( filename, sizeof(filename), ci, teamName, headName, headSkinName, "icon", "png" ) ) {
+	//	ci->modelIcon = trap_R_RegisterShaderNoMip( filename );
+	//}
+
+	if ( !ci->modelIcon ) {
+		Com_Printf( "Failed to load icon file %s\n", filename );
 		return qfalse;
 	}
 
@@ -738,7 +744,7 @@ Load it now, taking the disk hits.
 This will usually be deferred to a safe time
 ===================
 */
-static void CG_LoadClientInfo( clientInfo_t *ci ) {
+void CG_LoadClientInfo( clientInfo_t *ci ) {
 	const char	*dir;
 	int			i, modelloaded;
 	const char	*s;
@@ -781,11 +787,11 @@ static void CG_LoadClientInfo( clientInfo_t *ci ) {
 				Q_strncpyz(teamname, DEFAULT_REDTEAM_NAME, sizeof(teamname) );
 			}
 			if ( !CG_RegisterClientModelname( ci, DEFAULT_MODEL, ci->skinName, DEFAULT_MODEL, ci->skinName, teamname ) ) {
-				CG_Error( "DEFAULT_TEAM_MODEL / skin (%s/%s) failed to register", DEFAULT_MODEL, ci->skinName );
+			//	CG_Error( "DEFAULT_TEAM_MODEL / skin (%s/%s) failed to register", DEFAULT_MODEL, ci->skinName );
 			}
 		} else {
 			if ( !CG_RegisterClientModelname( ci, DEFAULT_MODEL, "default", DEFAULT_MODEL, "default", teamname ) ) {
-				CG_Error( "DEFAULT_MODEL (%s) failed to register", DEFAULT_MODEL );
+			//	CG_Error( "DEFAULT_MODEL (%s) failed to register", DEFAULT_MODEL );
 			}
 		}
 		modelloaded = qfalse;
@@ -1504,7 +1510,11 @@ static void CG_PlayerAnimation( centity_t *cent, int *legsOld, int *legs, float 
 		return;
 	}
 
-	if ( cent->currentState.powerups & ( 1 << PW_HASTE ) ) {
+	if ( cent->items[ITEM_PW_MIN + PW_HASTE] 
+#ifdef USE_RUNES
+    || cent->items[ITEM_PW_MIN + RUNE_HASTE]
+#endif
+  ) {
 		speedScale = 1.5;
 	} else {
 		speedScale = 1;
@@ -2094,16 +2104,10 @@ CG_PlayerPowerups
 ===============
 */
 static void CG_PlayerPowerups( centity_t *cent, refEntity_t *torso ) {
-	int		powerups;
 	clientInfo_t	*ci;
 
-	powerups = cent->currentState.powerups;
-	if ( !powerups ) {
-		return;
-	}
-
 	// quad gives a dlight
-	if ( powerups & ( 1 << PW_QUAD ) ) {
+	if ( cent->items[ITEM_PW_MIN + PW_QUAD] ) {
 		if ( cgs.clientinfo[ cent->currentState.clientNum ].team == TEAM_RED ) {
 			trap_R_AddLightToScene( cent->lerpOrigin, ( POWERUP_GLOW_RADIUS + (rand() & POWERUP_GLOW_RADIUS_MOD) ), 1.0f, 0.2f, 0.2f );
 		} else {
@@ -2112,13 +2116,13 @@ static void CG_PlayerPowerups( centity_t *cent, refEntity_t *torso ) {
 	}
 
 	// flight plays a looped sound
-	if ( powerups & ( 1 << PW_FLIGHT ) ) {
+	if ( cent->items[ITEM_PW_MIN + PW_FLIGHT] ) {
 		trap_S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin, vec3_origin, cgs.media.flightSound );
 	}
 
 	ci = &cgs.clientinfo[ cent->currentState.clientNum ];
 	// redflag
-	if ( powerups & ( 1 << PW_REDFLAG ) ) {
+	if ( cent->items[ITEM_PW_MIN + PW_REDFLAG] ) {
 		if (ci->newAnims) {
 			CG_PlayerFlag( cent, cgs.media.redFlagFlapSkin, torso );
 		}
@@ -2129,7 +2133,7 @@ static void CG_PlayerPowerups( centity_t *cent, refEntity_t *torso ) {
 	}
 
 	// blueflag
-	if ( powerups & ( 1 << PW_BLUEFLAG ) ) {
+	if ( cent->items[ITEM_PW_MIN + PW_BLUEFLAG] ) {
 		if (ci->newAnims){
 			CG_PlayerFlag( cent, cgs.media.blueFlagFlapSkin, torso );
 		}
@@ -2140,7 +2144,7 @@ static void CG_PlayerPowerups( centity_t *cent, refEntity_t *torso ) {
 	}
 
 	// neutralflag
-	if ( powerups & ( 1 << PW_NEUTRALFLAG ) ) {
+	if ( cent->items[ITEM_PW_MIN + PW_NEUTRALFLAG] ) {
 		if (ci->newAnims) {
 			CG_PlayerFlag( cent, cgs.media.neutralFlagFlapSkin, torso );
 		}
@@ -2151,7 +2155,11 @@ static void CG_PlayerPowerups( centity_t *cent, refEntity_t *torso ) {
 	}
 
 	// haste leaves smoke trails
-	if ( powerups & ( 1 << PW_HASTE ) ) {
+	if ( cent->items[ITEM_PW_MIN + PW_HASTE] 
+#ifdef USE_RUNES
+    || cent->items[ITEM_PW_MIN + RUNE_HASTE]
+#endif
+  ) {
 		CG_HasteTrail( cent );
 	}
 }
@@ -2273,7 +2281,7 @@ static qboolean CG_PlayerShadow( centity_t *cent, float *shadowPlane ) {
 	}
 
 	// no shadows when invisible
-	if ( cent->currentState.powerups & ( 1 << PW_INVIS ) ) {
+	if ( cent->items[ITEM_PW_MIN +  PW_INVIS] ) {
 		return qfalse;
 	}
 
@@ -2405,25 +2413,41 @@ Adds a piece with modifications or duplications for powerups
 Also called by CG_Missile for quad rockets, but nobody can tell...
 ===============
 */
-void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int team ) {
+void CG_AddRefEntityWithPowerups( refEntity_t *ent, centity_t *cl, int team ) {
+  centity_t *cent;
+  cent = &cg_entities[cl->currentState.number];
 
-	if ( state->powerups & ( 1 << PW_INVIS ) ) {
+#if defined(USE_GAME_FREEZETAG) || defined(USE_REFEREE_CMDS)
+    if ( cent->items[ITEM_PW_MIN + PW_FROZEN] )
+    {
+      trap_R_AddRefEntityToScene( ent );
+      ent->customShader = cgs.media.frozenShader;
+      trap_R_AddRefEntityToScene( ent );
+      return;
+    }
+#endif
+
+
+	if ( cent->items[ITEM_PW_MIN + PW_INVIS]
+    && cent->currentState.eType != ET_MISSILE) {
 		ent->customShader = cgs.media.invisShader;
 		trap_R_AddRefEntityToScene( ent );
 	} else {
-		/*
-		if ( state->eFlags & EF_KAMIKAZE ) {
+#ifdef MISSIONPACK
+		if ( cent->currentState.eFlags & EF_KAMIKAZE ) {
 			if (team == TEAM_BLUE)
 				ent->customShader = cgs.media.blueKamikazeShader;
 			else
 				ent->customShader = cgs.media.redKamikazeShader;
 			trap_R_AddRefEntityToScene( ent );
 		}
-		else {*/
+		else 
+#endif
+    {
 			trap_R_AddRefEntityToScene( ent );
-		//}
+		}
 
-		if ( state->powerups & ( 1 << PW_QUAD ) )
+		if ( cent->items[ITEM_PW_MIN + PW_QUAD] )
 		{
 			if (team == TEAM_RED)
 				ent->customShader = cgs.media.redQuadShader;
@@ -2431,16 +2455,30 @@ void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int te
 				ent->customShader = cgs.media.quadShader;
 			trap_R_AddRefEntityToScene( ent );
 		}
-		if ( state->powerups & ( 1 << PW_REGEN ) ) {
+		if ( cent->items[ITEM_PW_MIN + PW_REGEN] 
+      && cent->currentState.eType != ET_MISSILE) {
 			if ( ( ( cg.time / 100 ) % 10 ) == 1 ) {
 				ent->customShader = cgs.media.regenShader;
 				trap_R_AddRefEntityToScene( ent );
 			}
 		}
-		if ( state->powerups & ( 1 << PW_BATTLESUIT ) ) {
+		if ( cent->items[ITEM_PW_MIN + PW_BATTLESUIT] ) {
 			ent->customShader = cgs.media.battleSuitShader;
 			trap_R_AddRefEntityToScene( ent );
 		}
+#ifdef USE_RUNES
+    if( cent->items[ITEM_PW_MIN + RUNE_RESIST] ) {
+      ent->customShader = cg_items[ ITEM_INDEX(BG_FindItemForRune(3)) ].altShader3;
+      trap_R_AddRefEntityToScene( ent );
+    }
+    if( cent->items[ITEM_PW_MIN + RUNE_REGEN] 
+      && cent->currentState.eType != ET_MISSILE ) {
+      if ( ( ( cg.time / 100 ) % 10 ) == 1 ) {
+        ent->customShader = cg_items[ ITEM_INDEX(BG_FindItemForRune(2)) ].altShader3;
+				trap_R_AddRefEntityToScene( ent );
+			}
+    }
+#endif
 	}
 }
 
@@ -2603,20 +2641,20 @@ void CG_Player( centity_t *cent ) {
 	}
 	legs.shaderRGBA[3] = 255;
 
-	CG_AddRefEntityWithPowerups( &legs, &cent->currentState, ci->team );
+	CG_AddRefEntityWithPowerups( &legs, cent, ci->team );
 
 	// if the model failed, allow the default nullmodel to be displayed
-	if (!legs.hModel) {
-		return;
-	}
+	//if (!legs.hModel) {
+	//	return;
+	//}
 
 	//
 	// add the torso
 	//
 	torso.hModel = ci->torsoModel;
-	if (!torso.hModel) {
-		return;
-	}
+	//if (!torso.hModel) {
+	//	return;
+	//}
 
 	torso.customSkin = ci->torsoSkin;
 
@@ -2639,7 +2677,7 @@ void CG_Player( centity_t *cent ) {
 	}
 	torso.shaderRGBA[3] = 255;
 
-	CG_AddRefEntityWithPowerups( &torso, &cent->currentState, ci->team );
+	CG_AddRefEntityWithPowerups( &torso, cent, ci->team );
 
 #ifdef MISSIONPACK
 	if ( cent->currentState.eFlags & EF_KAMIKAZE ) {
@@ -2751,7 +2789,7 @@ void CG_Player( centity_t *cent ) {
 		}
 	}
 
-	if ( cent->currentState.powerups & ( 1 << PW_GUARD ) ) {
+	if ( cent->items[ITEM_PW_MIN +  PW_GUARD] ) {
 		memcpy(&powerup, &torso, sizeof(torso));
 		powerup.hModel = cgs.media.guardPowerupModel;
 		powerup.frame = 0;
@@ -2759,7 +2797,7 @@ void CG_Player( centity_t *cent ) {
 		powerup.customSkin = 0;
 		trap_R_AddRefEntityToScene( &powerup );
 	}
-	if ( cent->currentState.powerups & ( 1 << PW_SCOUT ) ) {
+	if ( cent->items[ITEM_PW_MIN +  PW_SCOUT] ) {
 		memcpy(&powerup, &torso, sizeof(torso));
 		powerup.hModel = cgs.media.scoutPowerupModel;
 		powerup.frame = 0;
@@ -2767,7 +2805,7 @@ void CG_Player( centity_t *cent ) {
 		powerup.customSkin = 0;
 		trap_R_AddRefEntityToScene( &powerup );
 	}
-	if ( cent->currentState.powerups & ( 1 << PW_DOUBLER ) ) {
+	if ( cent->items[ITEM_PW_MIN +  PW_DOUBLER] ) {
 		memcpy(&powerup, &torso, sizeof(torso));
 		powerup.hModel = cgs.media.doublerPowerupModel;
 		powerup.frame = 0;
@@ -2775,7 +2813,7 @@ void CG_Player( centity_t *cent ) {
 		powerup.customSkin = 0;
 		trap_R_AddRefEntityToScene( &powerup );
 	}
-	if ( cent->currentState.powerups & ( 1 << PW_AMMOREGEN ) ) {
+	if ( cent->items[ITEM_PW_MIN +  PW_AMMOREGEN] ) {
 		memcpy(&powerup, &torso, sizeof(torso));
 		powerup.hModel = cgs.media.ammoRegenPowerupModel;
 		powerup.frame = 0;
@@ -2783,7 +2821,7 @@ void CG_Player( centity_t *cent ) {
 		powerup.customSkin = 0;
 		trap_R_AddRefEntityToScene( &powerup );
 	}
-	if ( cent->currentState.powerups & ( 1 << PW_INVULNERABILITY ) ) {
+	if ( cent->items[ITEM_PW_MIN +  PW_INVULNERABILITY] ) {
 		if ( !ci->invulnerabilityStartTime ) {
 			ci->invulnerabilityStartTime = cg.time;
 		}
@@ -2792,7 +2830,7 @@ void CG_Player( centity_t *cent ) {
 	else {
 		ci->invulnerabilityStartTime = 0;
 	}
-	if ( (cent->currentState.powerups & ( 1 << PW_INVULNERABILITY ) ) ||
+	if ( (cent->items[ITEM_PW_MIN +  PW_INVULNERABILITY] ) ||
 		cg.time - ci->invulnerabilityStopTime < 250 ) {
 
 		memcpy(&powerup, &torso, sizeof(torso));
@@ -2848,32 +2886,37 @@ void CG_Player( centity_t *cent ) {
 	//
 	// add the head
 	//
-	head.hModel = ci->headModel;
-	if (!head.hModel) {
-		return;
-	}
-	head.customSkin = ci->headSkin;
+#ifdef USE_HEADSHOTS
+  if(!cent->pe.noHead)
+#endif
+  {
+  	head.hModel = ci->headModel;
+  	if (!head.hModel) {
+  		return;
+  	}
+  	head.customSkin = ci->headSkin;
 
-	VectorCopy( cent->lerpOrigin, head.lightingOrigin );
+  	VectorCopy( cent->lerpOrigin, head.lightingOrigin );
 
-	CG_PositionRotatedEntityOnTag( &head, &torso, ci->torsoModel, "tag_head");
+  	CG_PositionRotatedEntityOnTag( &head, &torso, ci->torsoModel, "tag_head");
 
-	head.shadowPlane = shadowPlane;
-	head.renderfx = renderfx;
+  	head.shadowPlane = shadowPlane;
+  	head.renderfx = renderfx;
 
-	// colored skin
-	if ( darken ) {
-		head.shaderRGBA[0] = 85;
-		head.shaderRGBA[1] = 85;
-		head.shaderRGBA[2] = 85;
-	} else {
-		head.shaderRGBA[0] = ci->headColor[0] * 255;
-		head.shaderRGBA[1] = ci->headColor[1] * 255;
-		head.shaderRGBA[2] = ci->headColor[2] * 255;
-	}
-	head.shaderRGBA[3] = 255;
-	
-	CG_AddRefEntityWithPowerups( &head, &cent->currentState, ci->team );
+  	// colored skin
+  	if ( darken ) {
+  		head.shaderRGBA[0] = 85;
+  		head.shaderRGBA[1] = 85;
+  		head.shaderRGBA[2] = 85;
+  	} else {
+  		head.shaderRGBA[0] = ci->headColor[0] * 255;
+  		head.shaderRGBA[1] = ci->headColor[1] * 255;
+  		head.shaderRGBA[2] = ci->headColor[2] * 255;
+  	}
+  	head.shaderRGBA[3] = 255;
+  	
+  	CG_AddRefEntityWithPowerups( &head, cent, ci->team );
+  }
 
 #ifdef MISSIONPACK
 	CG_BreathPuffs(cent, &head);
@@ -2924,6 +2967,10 @@ void CG_ResetPlayerEntity( centity_t *cent ) {
 	cent->pe.torso.yawing = qfalse;
 	cent->pe.torso.pitchAngle = cent->rawAngles[PITCH];
 	cent->pe.torso.pitching = qfalse;
+  
+#ifdef USE_HEADSHOTS
+  cent->pe.noHead = qfalse;
+#endif
 
 	if ( cg_debugPosition.integer ) {
 		CG_Printf("%i ResetPlayerEntity yaw=%f\n", cent->currentState.number, cent->pe.torso.yawAngle );

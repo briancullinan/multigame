@@ -225,6 +225,8 @@ typedef struct {
 	qhandle_t		shader[ MAX_FONT_SHADERS ];
 	int				shaderThreshold[ MAX_FONT_SHADERS ];
 	int				shaderCount;
+//#ifdef USE_ASYNCHRONOUS
+	qboolean  hasFailures;
 } font_t;
 
 static font_t bigchars;
@@ -242,24 +244,6 @@ void CG_SelectFont( int index )
 
 	metrics = &font->metrics[0];
 }
-
-
-static qboolean CG_FileExist( const char *file )
-{
-	fileHandle_t	f;
-
-	if ( !file || !file[0] )
-		return qfalse;
-	
-	trap_FS_FOpenFile( file, &f, FS_READ );
-	if ( f == FS_INVALID_HANDLE )
-		return qfalse;
-	else {
-		trap_FS_FCloseFile( f );
-		return qtrue;
-	}
-}
-
 
 static void CG_LoadFont( font_t *fnt, const char *fontName )
 {
@@ -279,6 +263,10 @@ static void CG_LoadFont( font_t *fnt, const char *fontName )
 	float x0, y0;
 	qboolean swapped;
 
+	if(fnt->shaderCount > 0 && !fnt->hasFailures) {
+		return;
+	}
+
 	memset( fnt, 0, sizeof( *fnt ) );
 
 	len = trap_FS_FOpenFile( fontName, &f, FS_READ );
@@ -297,6 +285,7 @@ static void CG_LoadFont( font_t *fnt, const char *fontName )
 	buf[ len ] = '\0';
 
 	shaderCount = 0;
+	fnt->hasFailures = qfalse;
 
 	text = buf; // initialize parser
 	COM_BeginParseSession( fontName );
@@ -317,10 +306,12 @@ static void CG_LoadFont( font_t *fnt, const char *fontName )
 				continue;
 			}
 			token = COM_ParseExt( &text, qfalse );
+#if 0 // this is a dumb check, most shaders load alt-images
 			if ( !CG_FileExist( token ) ) {
 				Com_Printf( "CG_LoadFont: font image '%s' doesn't exist.\n", token );
 				return;
 			}
+#endif
 			// save shader name
 			Q_strncpyz( shaderName[ shaderCount ], token, sizeof( shaderName[ shaderCount ] ) );
 			// get threshold
@@ -482,10 +473,13 @@ static void CG_LoadFont( font_t *fnt, const char *fontName )
 	fnt->shaderCount = shaderCount;
 	for ( i = 0; i < shaderCount; i++ ) {
 		fnt->shader[i] = trap_R_RegisterShaderNoMip( shaderName[i] );
+		if(!fnt->shader[i]) {
+			fnt->hasFailures = qtrue;
+		}
 		fnt->shaderThreshold[i] = shaderThreshold[i];
 	}
 
-	CG_Printf( "Font '%s' loaded with %i chars and %i images\n", fontName, chars, shaderCount );
+	Com_DPrintf( "Font '%s' loaded with %i chars and %i images\n", fontName, chars, shaderCount );
 }
 
 
@@ -944,14 +938,14 @@ void CG_ColorForHealth( vec4_t hcolor ) {
 }
 
 
-
+#if !defined(BUILD_GAME_STATIC) || defined(MISSIONPACK)
 // bk001205 - code below duplicated in q3_ui/ui-atoms.c
 // bk001205 - FIXME: does this belong in ui_shared.c?
 // bk001205 - FIXME: HARD_LINKED flags not visible here
 #ifndef Q3_STATIC // bk001205 - q_shared defines not visible here 
 /*
 =================
-UI_DrawProportionalString2
+CG_DrawProportionalString2
 =================
 */
 static int	propMap[128][3] = {
@@ -1102,10 +1096,10 @@ static int propMapB[26][3] = {
 
 /*
 =================
-UI_DrawBannerString
+CG_DrawBannerString
 =================
 */
-static void UI_DrawBannerString2( int x, int y, const char* str, vec4_t color )
+static void CG_DrawBannerString2( int x, int y, const char* str, vec4_t color )
 {
 	const char* s;
 	unsigned char	ch; // bk001204 : array subscript
@@ -1148,7 +1142,7 @@ static void UI_DrawBannerString2( int x, int y, const char* str, vec4_t color )
 	trap_R_SetColor( NULL );
 }
 
-void UI_DrawBannerString( int x, int y, const char* str, int style, vec4_t color ) {
+void CG_DrawBannerString( int x, int y, const char* str, int style, vec4_t color ) {
 	const char *	s;
 	int				ch;
 	int				width;
@@ -1186,14 +1180,14 @@ void UI_DrawBannerString( int x, int y, const char* str, int style, vec4_t color
 	if ( style & UI_DROPSHADOW ) {
 		drawcolor[0] = drawcolor[1] = drawcolor[2] = 0;
 		drawcolor[3] = color[3];
-		UI_DrawBannerString2( x+2, y+2, str, drawcolor );
+		CG_DrawBannerString2( x+2, y+2, str, drawcolor );
 	}
 
-	UI_DrawBannerString2( x, y, str, color );
+	CG_DrawBannerString2( x, y, str, color );
 }
 
 
-int UI_ProportionalStringWidth( const char* str ) {
+int CG_ProportionalStringWidth( const char* str ) {
 	const char *	s;
 	int				ch;
 	int				charWidth;
@@ -1215,7 +1209,7 @@ int UI_ProportionalStringWidth( const char* str ) {
 	return width;
 }
 
-static void UI_DrawProportionalString2( int x, int y, const char* str, vec4_t color, float sizeScale, qhandle_t charset )
+static void CG_DrawProportionalString2( int x, int y, const char* str, vec4_t color, float sizeScale, qhandle_t charset )
 {
 	const char* s;
 	unsigned char	ch; // bk001204 - unsigned
@@ -1261,10 +1255,10 @@ static void UI_DrawProportionalString2( int x, int y, const char* str, vec4_t co
 
 /*
 =================
-UI_ProportionalSizeScale
+CG_ProportionalSizeScale
 =================
 */
-float UI_ProportionalSizeScale( int style ) {
+float CG_ProportionalSizeScale( int style ) {
 	if(  style & UI_SMALLFONT ) {
 		return 0.75;
 	}
@@ -1275,24 +1269,24 @@ float UI_ProportionalSizeScale( int style ) {
 
 /*
 =================
-UI_DrawProportionalString
+CG_DrawProportionalString
 =================
 */
-void UI_DrawProportionalString( int x, int y, const char* str, int style, vec4_t color ) {
+void CG_DrawProportionalString( int x, int y, const char* str, int style, vec4_t color ) {
 	vec4_t	drawcolor;
 	int		width;
 	float	sizeScale;
 
-	sizeScale = UI_ProportionalSizeScale( style );
+	sizeScale = CG_ProportionalSizeScale( style );
 
 	switch( style & UI_FORMATMASK ) {
 		case UI_CENTER:
-			width = UI_ProportionalStringWidth( str ) * sizeScale;
+			width = CG_ProportionalStringWidth( str ) * sizeScale;
 			x -= width / 2;
 			break;
 
 		case UI_RIGHT:
-			width = UI_ProportionalStringWidth( str ) * sizeScale;
+			width = CG_ProportionalStringWidth( str ) * sizeScale;
 			x -= width;
 			break;
 
@@ -1304,7 +1298,7 @@ void UI_DrawProportionalString( int x, int y, const char* str, int style, vec4_t
 	if ( style & UI_DROPSHADOW ) {
 		drawcolor[0] = drawcolor[1] = drawcolor[2] = 0;
 		drawcolor[3] = color[3];
-		UI_DrawProportionalString2( x+2, y+2, str, drawcolor, sizeScale, cgs.media.charsetProp );
+		CG_DrawProportionalString2( x+2, y+2, str, drawcolor, sizeScale, cgs.media.charsetProp );
 	}
 
 	if ( style & UI_INVERSE ) {
@@ -1312,7 +1306,7 @@ void UI_DrawProportionalString( int x, int y, const char* str, int style, vec4_t
 		drawcolor[1] = color[1] * 0.8;
 		drawcolor[2] = color[2] * 0.8;
 		drawcolor[3] = color[3];
-		UI_DrawProportionalString2( x, y, str, drawcolor, sizeScale, cgs.media.charsetProp );
+		CG_DrawProportionalString2( x, y, str, drawcolor, sizeScale, cgs.media.charsetProp );
 		return;
 	}
 
@@ -1321,16 +1315,17 @@ void UI_DrawProportionalString( int x, int y, const char* str, int style, vec4_t
 		drawcolor[1] = color[1] * 0.8;
 		drawcolor[2] = color[2] * 0.8;
 		drawcolor[3] = color[3];
-		UI_DrawProportionalString2( x, y, str, color, sizeScale, cgs.media.charsetProp );
+		CG_DrawProportionalString2( x, y, str, color, sizeScale, cgs.media.charsetProp );
 
 		drawcolor[0] = color[0];
 		drawcolor[1] = color[1];
 		drawcolor[2] = color[2];
 		drawcolor[3] = 0.5 + 0.5 * sin( ( cg.time % TMOD_075 ) / PULSE_DIVISOR );
-		UI_DrawProportionalString2( x, y, str, drawcolor, sizeScale, cgs.media.charsetPropGlow );
+		CG_DrawProportionalString2( x, y, str, drawcolor, sizeScale, cgs.media.charsetPropGlow );
 		return;
 	}
 
-	UI_DrawProportionalString2( x, y, str, color, sizeScale, cgs.media.charsetProp );
+	CG_DrawProportionalString2( x, y, str, color, sizeScale, cgs.media.charsetProp );
 }
 #endif // Q3STATIC
+#endif

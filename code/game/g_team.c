@@ -27,9 +27,8 @@ void Team_InitGame( void ) {
 
 	switch( g_gametype.integer ) {
 	case GT_CTF:
-		teamgame.redStatus = -1; // Invalid to force update
+		teamgame.redStatus = teamgame.blueStatus = -1; // Invalid to force update
 		Team_SetFlagStatus( TEAM_RED, FLAG_ATBASE );
-		teamgame.blueStatus = -1; // Invalid to force update
 		Team_SetFlagStatus( TEAM_BLUE, FLAG_ATBASE );
 		break;
 #ifdef MISSIONPACK
@@ -310,7 +309,7 @@ void Team_FragBonuses(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker
 		tokens = targ->client->ps.generic1;
 	}
 #endif
-	if (targ->client->ps.powerups[enemy_flag_pw]) {
+	if (targ->items[ITEM_PW_MIN + enemy_flag_pw]) {
 		attacker->client->pers.teamState.lastfraggedcarrier = level.time;
 		AddScore(attacker, targ->r.currentOrigin, CTF_FRAG_CARRIER_BONUS);
 		attacker->client->pers.teamState.fragcarrier++;
@@ -347,7 +346,7 @@ void Team_FragBonuses(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker
 
 	if (targ->client->pers.teamState.lasthurtcarrier &&
 		level.time - targ->client->pers.teamState.lasthurtcarrier < CTF_CARRIER_DANGER_PROTECT_TIMEOUT &&
-		!attacker->client->ps.powerups[flag_pw]) {
+		!attacker->items[ITEM_PW_MIN + flag_pw]) {
 		// attacker is on the same team as the flag carrier and
 		// fragged a guy who hurt our flag carrier
 		AddScore(attacker, targ->r.currentOrigin, CTF_CARRIER_DANGER_PROTECT_BONUS);
@@ -420,7 +419,7 @@ void Team_FragBonuses(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker
 	// find attacker's team's flag carrier
 	for (i = 0; i < level.maxclients; i++) {
 		carrier = g_entities + i;
-		if (carrier->inuse && carrier->client->ps.powerups[flag_pw])
+		if (carrier->inuse && carrier->items[ITEM_PW_MIN + flag_pw])
 			break;
 		carrier = NULL;
 	}
@@ -506,7 +505,7 @@ void Team_CheckHurtCarrier(gentity_t *targ, gentity_t *attacker)
 		flag_pw = PW_REDFLAG;
 
 	// flags
-	if (targ->client->ps.powerups[flag_pw] &&
+	if (targ->items[ITEM_PW_MIN + flag_pw] &&
 		targ->client->sess.sessionTeam != attacker->client->sess.sessionTeam)
 		attacker->client->pers.teamState.lasthurtcarrier = level.time;
 
@@ -565,27 +564,21 @@ void Team_ResetFlags( void ) {
 
 
 static void Team_ReturnFlagSound( gentity_t *ent, team_t team ) {
-	gentity_t	*te;
-
 	if (ent == NULL) {
 		G_Printf ("Warning:  NULL passed to Team_ReturnFlagSound\n");
 		return;
 	}
 
-	te = G_TempEntity( ent->s.pos.trBase, EV_GLOBAL_TEAM_SOUND );
 	if( team == TEAM_BLUE ) {
-		te->s.eventParm = GTS_RED_RETURN;
+    G_AddEvent(ent, EV_GLOBAL_TEAM_SOUND, GTS_RED_RETURN);
 	}
 	else {
-		te->s.eventParm = GTS_BLUE_RETURN;
+    G_AddEvent(ent, EV_GLOBAL_TEAM_SOUND, GTS_BLUE_RETURN);
 	}
-	te->r.svFlags |= SVF_BROADCAST;
 }
 
 
 static void Team_TakeFlagSound( gentity_t *ent, team_t team ) {
-	gentity_t	*te;
-
 	if ( ent == NULL ) {
 		G_Printf( "Warning:  NULL passed to Team_TakeFlagSound\n" );
 		return;
@@ -614,33 +607,26 @@ static void Team_TakeFlagSound( gentity_t *ent, team_t team ) {
 			return;
 	}
 
-	te = G_TempEntity( ent->s.pos.trBase, EV_GLOBAL_TEAM_SOUND );
 	if( team == TEAM_BLUE ) {
-		te->s.eventParm = GTS_RED_TAKEN;
+    G_AddEvent(ent, EV_GLOBAL_TEAM_SOUND, GTS_RED_TAKEN);
 	}
 	else {
-		te->s.eventParm = GTS_BLUE_TAKEN;
+    G_AddEvent(ent, EV_GLOBAL_TEAM_SOUND, GTS_BLUE_TAKEN);
 	}
-	te->r.svFlags |= SVF_BROADCAST;
 }
 
 
 static void Team_CaptureFlagSound( gentity_t *ent, team_t team ) {
-	gentity_t	*te;
-
 	if (ent == NULL) {
 		G_Printf ("Warning:  NULL passed to Team_CaptureFlagSound\n");
 		return;
 	}
 
-	te = G_TempEntity( ent->s.pos.trBase, EV_GLOBAL_TEAM_SOUND );
 	if( team == TEAM_BLUE ) {
-		te->s.eventParm = GTS_BLUE_CAPTURE;
+    G_AddEvent(ent, EV_GLOBAL_TEAM_SOUND, GTS_BLUE_CAPTURE);
+	} else {
+    G_AddEvent(ent, EV_GLOBAL_TEAM_SOUND, GTS_RED_CAPTURE);
 	}
-	else {
-		te->s.eventParm = GTS_RED_CAPTURE;
-	}
-	te->r.svFlags |= SVF_BROADCAST;
 }
 
 
@@ -735,7 +721,7 @@ static int Team_TouchOurFlag( gentity_t *ent, gentity_t *other, team_t team ) {
 
 	// the flag is at home base.  if the player has the enemy
 	// flag, he's just won!
-	if (!cl->ps.powerups[enemy_flag])
+	if (!other->items[ITEM_PW_MIN + enemy_flag])
 		return 0; // We don't have the flag
 #ifdef MISSIONPACK
 	if( g_gametype.integer == GT_1FCTF ) {
@@ -748,7 +734,7 @@ static int Team_TouchOurFlag( gentity_t *ent, gentity_t *other, team_t team ) {
 	}
 #endif
 
-	cl->ps.powerups[enemy_flag] = 0;
+	other->items[ITEM_PW_MIN + enemy_flag] = 0;
 
 	teamgame.last_flag_capture = level.time;
 	teamgame.last_capture_team = team;
@@ -822,7 +808,7 @@ static int Team_TouchEnemyFlag( gentity_t *ent, gentity_t *other, team_t team ) 
 	if( g_gametype.integer == GT_1FCTF ) {
 		PrintMsg (NULL, "%s" S_COLOR_WHITE " got the flag!\n", other->client->pers.netname );
 
-		cl->ps.powerups[PW_NEUTRALFLAG] = INT_MAX; // flags never expire
+		other->items[ITEM_PW_MIN + PW_NEUTRALFLAG] = INT_MAX; // flags never expire
 
 		if( team == TEAM_RED ) {
 			Team_SetFlagStatus( TEAM_FREE, FLAG_TAKEN_RED );
@@ -837,9 +823,9 @@ static int Team_TouchEnemyFlag( gentity_t *ent, gentity_t *other, team_t team ) 
 			other->client->pers.netname, TeamName(team));
 
 		if (team == TEAM_RED)
-			cl->ps.powerups[PW_REDFLAG] = INT_MAX; // flags never expire
+			other->items[ITEM_PW_MIN + PW_REDFLAG] = INT_MAX; // flags never expire
 		else
-			cl->ps.powerups[PW_BLUEFLAG] = INT_MAX; // flags never expire
+			other->items[ITEM_PW_MIN + PW_BLUEFLAG] = INT_MAX; // flags never expire
 
 		Team_SetFlagStatus( team, FLAG_TAKEN );
 #ifdef MISSIONPACK
@@ -858,6 +844,7 @@ int Pickup_Team( gentity_t *ent, gentity_t *other ) {
 	int team;
 	gclient_t *cl = other->client;
 
+  ent->r.svFlags |= SVF_BROADCAST;
 #ifdef MISSIONPACK
 	if( g_gametype.integer == GT_OBELISK ) {
 		// there are no team items that can be picked up in obelisk
@@ -1122,7 +1109,7 @@ void TeamplayInfoMessage( gentity_t *ent ) {
 			j = BG_sprintf( entry, " %i %i %i %i %i %i",
 //				level.sortedClients[i], player->client->pers.teamState.location, h, a, 
 				i, player->client->pers.teamState.location, h, a, 
-				player->client->ps.weapon, player->s.powerups);
+				player->client->ps.weapon, 0 /* player->s.powerups */);
 			if ( stringlength + j >= sizeof( string ) )
 				break;
 			strcpy( string + stringlength, entry );
@@ -1217,7 +1204,7 @@ static void ObeliskRegen( gentity_t *self ) {
 		return;
 	}
 
-	G_AddEvent( self, EV_POWERUP_REGEN, 0 );
+	G_AddEvent( self, EV_POWERUP, PW_REGEN );
 	self->health += g_obeliskRegenAmount.integer;
 	if ( self->health > g_obeliskHealth.integer ) {
 		self->health = g_obeliskHealth.integer;
@@ -1455,8 +1442,6 @@ CheckObeliskAttack
 ================
 */
 qboolean CheckObeliskAttack( gentity_t *obelisk, gentity_t *attacker ) {
-	gentity_t	*te;
-
 	// if this really is an obelisk
 	if( obelisk->die != ObeliskDie ) {
 		return qfalse;
@@ -1481,16 +1466,14 @@ qboolean CheckObeliskAttack( gentity_t *obelisk, gentity_t *attacker ) {
 		teamgame.blueObeliskAttackedTime < level.time - OVERLOAD_ATTACK_BASE_SOUND_TIME) ) {
 
 		// tell which obelisk is under attack
-		te = G_TempEntity( obelisk->s.pos.trBase, EV_GLOBAL_TEAM_SOUND );
 		if( obelisk->spawnflags == TEAM_RED ) {
-			te->s.eventParm = GTS_REDOBELISK_ATTACKED;
+      G_AddEvent(obelisk, EV_GLOBAL_TEAM_SOUND, GTS_REDOBELISK_ATTACKED);
 			teamgame.redObeliskAttackedTime = level.time;
 		}
 		else {
-			te->s.eventParm = GTS_BLUEOBELISK_ATTACKED;
+      G_AddEvent(obelisk, EV_GLOBAL_TEAM_SOUND, GTS_BLUEOBELISK_ATTACKED);
 			teamgame.blueObeliskAttackedTime = level.time;
 		}
-		te->r.svFlags |= SVF_BROADCAST;
 	}
 
 	return qfalse;

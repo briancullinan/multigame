@@ -30,7 +30,12 @@
 #define	PAIN_TWITCH_TIME	200
 #define	WEAPON_SELECT_TIME	1400
 #define	ITEM_SCALEUP_TIME	1000
+#ifdef USE_ADVANCED_ZOOM
+#define	ZOOM_TIME			500
+#define	ZOOM_TIME_OUT	200
+#else
 #define	ZOOM_TIME			150
+#endif
 #define	ITEM_BLOB_TIME		200
 #define	MUZZLE_FLASH_TIME	20
 #define	SINK_TIME			1000		// time for fragments to sink into ground before going away
@@ -160,6 +165,9 @@ typedef struct {
 	float			barrelAngle;
 	int				barrelTime;
 	qboolean		barrelSpinning;
+#ifdef USE_HEADSHOTS
+  qboolean	noHead;
+#endif
 } playerEntity_t;
 
 //=================================================
@@ -201,6 +209,11 @@ typedef struct centity_s {
 	// exact interpolated position of entity on this frame
 	vec3_t			lerpOrigin;
 	vec3_t			lerpAngles;
+
+  int       items[MAX_ITEMS]; // times of items attached to the entities
+#ifdef USE_RUNES
+  int       rune;
+#endif
 } centity_t;
 
 
@@ -230,6 +243,12 @@ typedef enum {
 	LE_FADE_RGB,
 	LE_SCALE_FADE,
 	LE_SCOREPLUM,
+#ifdef USE_DAMAGE_PLUMS
+  LE_DAMAGEPLUM,
+#endif
+#ifdef USE_ITEM_TIMERS
+  LE_ITEMTIMER,
+#endif
 #ifdef MISSIONPACK
 	LE_KAMIKAZE,
 	LE_INVULIMPACT,
@@ -400,6 +419,14 @@ typedef struct weaponInfo_s {
 	qhandle_t		weaponModel;
 	qhandle_t		barrelModel;
 	qhandle_t		flashModel;
+  qhandle_t		flashModel_type1;
+  qhandle_t		flashModel_type2;
+  qhandle_t		flashModel_type2a;
+  qhandle_t		flashModel_type3;
+  qhandle_t		flashModel_type4;
+  qhandle_t		flashModel_type5;
+  qhandle_t		flashModel_type5a;
+  int			lfx;	// leilei - for weapon muzzleflash particle effects
 
 	vec3_t			weaponMidpoint;		// so it will rotate centered instead of by tag
 
@@ -438,6 +465,11 @@ typedef struct {
 	qhandle_t		models[MAX_ITEM_MODELS];
 	qhandle_t		icon;
 	qhandle_t		icon_df;
+#ifdef USE_RUNES
+  qhandle_t		altShader1;
+  qhandle_t		altShader2;
+  qhandle_t		altShader3;
+#endif
 } itemInfo_t;
 
 
@@ -542,8 +574,12 @@ typedef struct {
 
 	// zoom key
 	qboolean	zoomed;
-	int			zoomTime;
-	float		zoomSensitivity;
+	int			  zoomTime;
+	float		  zoomSensitivity;
+#ifdef USE_ADVANCED_ZOOM
+  qboolean	zooming;
+  int		    setZoomFov;
+#endif
 
 	// information screen text during loading
 	char		infoScreenText[MAX_STRING_CHARS];
@@ -557,6 +593,11 @@ typedef struct {
 	qboolean	showScores;
 	qboolean	scoreBoardShowing;
 	int			scoreFadeTime;
+#ifdef USE_RUNES
+  qboolean	showRunes;
+  qboolean  runesBoardShowing;
+  int			runesFadeTime;
+#endif
 	char		killerName[MAX_NAME_LENGTH+32];
 	int			killerTime;
 	char			spectatorList[MAX_STRING_CHARS];		// list of names
@@ -665,7 +706,8 @@ typedef struct {
 	float		xyspeed;
 	int			nextOrbitTime;
 
-	//qboolean cameraMode;		// if rendering from a loaded camera
+	qboolean cameraMode;		// if rendering from a loaded camera
+	int      currentCamera;
 
 	// development tool
 	refEntity_t		testModelEntity;
@@ -686,6 +728,13 @@ typedef struct {
 	int				followClient;
 
 	qboolean		skipDFshaders;
+	
+	vec2_t mapcoordsMins;
+	vec2_t mapcoordsMaxs;
+	vec2_t mapcoordsScale;
+	qboolean mapcoordsValid;
+
+
 } cg_t;
 
 
@@ -734,6 +783,11 @@ typedef struct {
 	qhandle_t	harvesterNeutralModel;
 #endif
 
+#ifdef USE_FLAME_THROWER
+  qhandle_t flameBallShader;
+  qhandle_t flameExplosionShader;
+#endif
+
 	qhandle_t	armorModel;
 	qhandle_t	armorIcon;
 
@@ -772,6 +826,9 @@ typedef struct {
 	qhandle_t	viewBloodShader;
 	qhandle_t	tracerShader;
 	qhandle_t	crosshairShader[NUM_CROSSHAIRS];
+#ifdef USE_LASER_SIGHT
+  qhandle_t	laserShader;
+#endif
 	qhandle_t	lagometerShader;
 	qhandle_t	backTileShader;
 	qhandle_t	noammoShader;
@@ -788,6 +845,7 @@ typedef struct {
 #endif
 
 	qhandle_t	numberShaders[11];
+  qhandle_t	timerSlices[4];
 
 	qhandle_t	shadowMarkShader;
 
@@ -828,7 +886,10 @@ typedef struct {
 	qhandle_t	rocketExplosionShader;
 	qhandle_t	grenadeExplosionShader;
 	qhandle_t	bfgExplosionShader;
+  qhandle_t	redBFG;
+  qhandle_t	blueBFG;
 	qhandle_t	bloodExplosionShader;
+  qhandle_t	grappleShader;	
 
 	// special effects models
 	qhandle_t	teleportEffectModel;
@@ -1014,6 +1075,8 @@ typedef struct {
 	sfxHandle_t scoutSound;
 #endif
 	qhandle_t cursor;
+  qhandle_t selectCursor;
+	qhandle_t sizeCursor;
 
 	sfxHandle_t	regenSound;
 	sfxHandle_t	protectSound;
@@ -1025,6 +1088,10 @@ typedef struct {
 	sfxHandle_t	wstbimpdSound;
 	sfxHandle_t	wstbactvSound;
 
+#if defined(USE_GAME_FREEZETAG) || defined(USE_REFEREE_CMDS)
+  sfxHandle_t frozenSound;
+  qhandle_t	frozenShader;
+#endif
 } cgMedia_t;
 
 
@@ -1063,6 +1130,7 @@ typedef struct {
 	int				timelimit;
 	int				maxclients;
 	char			mapname[MAX_QPATH];
+	char 			rawmapname[MAX_QPATH];
 	char			redTeam[MAX_QPATH];
 	char			blueTeam[MAX_QPATH];
 
@@ -1105,8 +1173,6 @@ typedef struct {
 	int				teamLastChatPos;
 
 #ifdef MISSIONPACK
-	int cursorX;
-	int cursorY;
 	qboolean eventHandling;
 	qboolean mouseCaptured;
 	qboolean sizingHud;
@@ -1123,6 +1189,10 @@ typedef struct {
 	int acceptLeader;
 	char acceptVoice[MAX_NAME_LENGTH];
 #endif
+
+	float	scrFadeAlpha, scrFadeAlphaCurrent;
+	int		scrFadeStartTime;
+	int		scrFadeDuration;
 
 	// media
 	cgMedia_t		media;
@@ -1148,10 +1218,16 @@ typedef struct {
 
 //==============================================================================
 
+#define MAX_CLASSES 2
+
+#ifdef USE_SINGLEPLAYER // entity
+extern	int player_stop;
+extern	int black_bars;
+#endif
 extern	cgs_t			cgs;
 extern	cg_t			cg;
 extern	centity_t		cg_entities[MAX_GENTITIES];
-extern	weaponInfo_t	cg_weapons[MAX_WEAPONS];
+extern	weaponInfo_t	cg_weapons[MAX_WEAPONS*MAX_CLASSES];
 extern	itemInfo_t		cg_items[MAX_ITEMS];
 extern	markPoly_t		cg_markPolys[MAX_MARK_POLYS];
 
@@ -1231,6 +1307,8 @@ extern	vmCvar_t		cg_noVoiceChats;
 extern	vmCvar_t		cg_noVoiceText;
 #endif
 extern  vmCvar_t		cg_scorePlum;
+extern  vmCvar_t		cg_damagePlum;
+extern  vmCvar_t		cg_itemTimer;
 extern	vmCvar_t		cg_smoothClients;
 extern	vmCvar_t		cg_cameraOrbit;
 extern	vmCvar_t		cg_cameraOrbitDelay;
@@ -1258,6 +1336,7 @@ extern	vmCvar_t		cg_singlePlayerActive;
 extern  vmCvar_t		cg_recordSPDemo;
 extern  vmCvar_t		cg_recordSPDemoName;
 extern	vmCvar_t		cg_obeliskRespawnDelay;
+extern  vmCvar_t    cg_hudFiles;
 #endif
 
 extern	vmCvar_t		cg_hitSounds;
@@ -1271,6 +1350,30 @@ extern	vmCvar_t		cg_teamColors;
 extern	vmCvar_t		cg_deadBodyDarken;
 extern	vmCvar_t		cg_fovAdjust;
 extern	vmCvar_t		cg_followKiller;
+#ifdef USE_PHYSICS_VARS
+extern	vmCvar_t	  cg_hasteFactor;
+extern	vmCvar_t	  cg_jumpVelocity;
+extern	vmCvar_t	  cg_gravity;
+extern	vmCvar_t	  cg_wallWalk;
+#endif
+#ifdef USE_PORTALS
+extern  vmCvar_t    cgwp_portalEnable;
+extern  vmCvar_t    cg_altPortal;
+#endif
+#ifdef USE_GRAPPLE
+extern  vmCvar_t    cg_altGrapple;
+extern  vmCvar_t    cg_enableGrapple;
+#endif
+#ifdef USE_WEAPON_ORDER
+extern  vmCvar_t    cg_weaponOrder;
+#endif
+#ifdef USE_WEAPON_CENTER
+extern  vmCvar_t    cg_gunCenter;
+#endif
+
+extern  vmCvar_t  cg_atmosphere;
+extern  vmCvar_t  cg_atmosphericEffects;
+
 
 extern const char		*eventnames[EV_MAX];
 
@@ -1291,6 +1394,12 @@ void CG_UpdateCvars( void );
 int CG_CrosshairPlayer( void );
 int CG_LastAttacker( void );
 void CG_LoadMenus(const char *menuFile);
+#ifdef MISSIONPACK
+#ifdef USE_CLASSIC_HUD
+void CG_KeyEvent2( int key, qboolean down );
+void CG_MouseEvent2( int x, int y );
+#endif
+#endif
 void CG_KeyEvent( int key, qboolean down );
 void CG_MouseEvent( int x, int y );
 void CG_EventHandling( cgame_event_t type );
@@ -1316,6 +1425,9 @@ void CG_ZoomDown_f( void );
 void CG_ZoomUp_f( void );
 void CG_AddBufferedSound( sfxHandle_t sfx);
 
+qboolean CG_CullPoint( vec3_t pt );
+qboolean CG_CullPointAndRadius( const vec3_t pt, vec_t radius );
+
 void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demoPlayback );
 
 
@@ -1340,12 +1452,16 @@ void CG_TileClear( void );
 void CG_ColorForHealth( vec4_t hcolor );
 void CG_GetColorForHealth( int health, int armor, vec4_t hcolor );
 
-void UI_DrawProportionalString( int x, int y, const char* str, int style, vec4_t color );
+void CG_DrawProportionalString( int x, int y, const char* str, int style, vec4_t color );
 void CG_DrawRect( float x, float y, float width, float height, float size, const float *color );
 void CG_DrawSides(float x, float y, float w, float h, float size);
 void CG_DrawTopBottom(float x, float y, float w, float h, float size);
+void CG_Fade( int a, int time, int duration );
+void CG_DrawFlashFade( void );
 
+#ifdef MISSIONPACK
 #define USE_NEW_FONT_RENDERER
+#endif
 
 // flags for CG_DrawString
 enum {
@@ -1409,7 +1525,7 @@ void CG_TrackClientTeamChange( void );
 //
 void CG_Player( centity_t *cent );
 void CG_ResetPlayerEntity( centity_t *cent );
-void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int team );
+void CG_AddRefEntityWithPowerups( refEntity_t *ent, centity_t *cent, int team );
 void CG_NewClientInfo( int clientNum );
 sfxHandle_t	CG_CustomSound( int clientNum, const char *soundName );
 
@@ -1495,6 +1611,9 @@ void	CG_AddLocalEntities( void );
 //
 // cg_effects.c
 //
+#ifdef USE_SINGLEPLAYER // entity
+void CG_BlackBars(void);
+#endif
 localEntity_t *CG_SmokePuff( const vec3_t p, 
 				   const vec3_t vel, 
 				   float radius,
@@ -1516,6 +1635,9 @@ void CG_InvulnerabilityJuiced( vec3_t org );
 void CG_LightningBoltBeam( vec3_t start, vec3_t end );
 #endif
 void CG_ScorePlum( int client, const vec3_t origin, int score );
+#ifdef USE_DAMAGE_PLUMS
+void CG_DamagePlum( int client, const vec3_t origin, int damage );
+#endif
 
 void CG_GibPlayer( const vec3_t playerOrigin );
 void CG_BigExplode( vec3_t playerOrigin );
@@ -1574,12 +1696,140 @@ void CG_TransitionPlayerState( playerState_t *ps, playerState_t *ops );
 void CG_CheckChangedPredictableEvents( playerState_t *ps );
 
 
+//
+// cg_atmospheric.c
+//
+void CG_GenerateTracemap( void );
+void CG_EffectParse( const char *effectstr );
+void CG_AddAtmosphericEffects( void );
+
+//
+// cg_polybus.c
+//
+
+polyBuffer_t* CG_PB_FindFreePolyBuffer( qhandle_t shader, int numVerts, int numIndicies );
+void CG_PB_ClearPolyBuffers( void );
+void CG_PB_RenderPolyBuffers( void );
+
 //===============================================
 
 //
 // system traps
 // These functions are how the cgame communicates with the main game system
 //
+
+#ifdef BUILD_GAME_STATIC
+#define trap_Print trapcg_Print
+#define trap_Error trapcg_Error
+#define trap_Milliseconds trapcg_Milliseconds
+#define trap_Cvar_Register trapcg_Cvar_Register
+#define trap_Cvar_Update trapcg_Cvar_Update
+#define trap_Cvar_Set trapcg_Cvar_Set
+//#define trap_Cvar_VariableStringBuffer trapcg_Cvar_VariableStringBuffer
+#define trap_Argc trapcg_Argc
+#define trap_Argv trapcg_Argv
+#define trap_Args trapcg_Args
+#define trap_FS_FOpenFile trapcg_FS_FOpenFile
+#define trap_FS_Read trapcg_FS_Read
+#define trap_FS_Write trapcg_FS_Write
+#define trap_FS_FCloseFile trapcg_FS_FCloseFile
+#define trap_FS_Seek trapcg_FS_Seek
+#define trap_SendConsoleCommand trapcg_SendConsoleCommand
+#define trap_RealTime trapcg_RealTime
+#define trap_AddCommand trapcg_AddCommand
+#define trap_RemoveCommand trapcg_RemoveCommand
+#define trap_SendClientCommand trapcg_SendClientCommand
+#define trap_UpdateScreen trapcg_UpdateScreen
+#define trap_CM_LoadMap trapcg_CM_LoadMap
+#define trap_CM_NumInlineModels trapcg_CM_NumInlineModels
+#define trap_CM_InlineModel trapcg_CM_InlineModel
+#define trap_CM_TempBoxModel trapcg_CM_TempBoxModel
+#define trap_CM_PointContents trapcg_CM_PointContents
+#define trap_CM_TransformedPointContents trapcg_CM_TransformedPointContents
+#define trap_CM_BoxTrace trapcg_CM_BoxTrace
+#define trap_CM_CapsuleTrace trapcg_CM_CapsuleTrace
+#define trap_CM_TransformedBoxTrace trapcg_CM_TransformedBoxTrace
+#define trap_CM_TransformedCapsuleTrace trapcg_CM_TransformedCapsuleTrace
+#define trap_CM_MarkFragments trapcg_CM_MarkFragments
+#define trap_S_StartSound trapcg_S_StartSound
+#define trap_S_StopLoopingSound trapcg_S_StopLoopingSound
+#define trap_S_StartLocalSound trapcg_S_StartLocalSound
+#define trap_S_ClearLoopingSounds trapcg_S_ClearLoopingSounds
+#define trap_S_AddLoopingSound trapcg_S_AddLoopingSound
+#define trap_S_AddRealLoopingSound trapcg_S_AddRealLoopingSound
+#define trap_S_UpdateEntityPosition trapcg_S_UpdateEntityPosition
+#define trap_S_Respatialize trapcg_S_Respatialize
+#define trap_S_RegisterSound trapcg_S_RegisterSound
+#define trap_S_StartBackgroundTrack trapcg_S_StartBackgroundTrack
+#define trap_S_StopBackgroundTrack trapcg_S_StopBackgroundTrack
+#define trap_R_LoadWorldMap trapcg_R_LoadWorldMap
+#define trap_R_RegisterModel trapcg_R_RegisterModel
+#define trap_R_RegisterSkin trapcg_R_RegisterSkin
+#define trap_R_RegisterShader trapcg_R_RegisterShader
+#define trap_R_RegisterShaderNoMip trapcg_R_RegisterShaderNoMip
+#define trap_R_ClearScene trapcg_R_ClearScene
+#define trap_R_AddRefEntityToScene trapcg_R_AddRefEntityToScene
+#define trap_R_AddPolyToScene trapcg_R_AddPolyToScene
+#define trap_R_AddPolysToScene trapcg_R_AddPolysToScene
+#define trap_R_AddLightToScene trapcg_R_AddLightToScene
+#define trap_R_AddAdditiveLightToScene trapcg_R_AddAdditiveLightToScene
+#define trap_R_LightForPoint trapcg_R_LightForPoint
+#define trap_R_RenderScene trapcg_R_RenderScene
+#define trap_R_SetColor trapcg_R_SetColor
+#define trap_R_DrawStretchPic trapcg_R_DrawStretchPic
+#define trap_R_ModelBounds trapcg_R_ModelBounds
+#define trap_R_LerpTag trapcg_R_LerpTag
+#define trap_R_RemapShader trapcg_R_RemapShader
+#define trap_R_inPVS trapcg_R_inPVS
+#define trap_GetGlconfig trapcg_GetGlconfig
+#define trap_GetGameState trapcg_GetGameState
+#define trap_GetCurrentSnapshotNumber trapcg_GetCurrentSnapshotNumber
+#define trap_GetSnapshot trapcg_GetSnapshot
+#define trap_GetServerCommand trapcg_GetServerCommand
+#define trap_GetCurrentCmdNumber trapcg_GetCurrentCmdNumber
+#define trap_GetUserCmd trapcg_GetUserCmd
+#define trap_SetUserCmdValue trapcg_SetUserCmdValue
+#define trap_MemoryRemaining trapcg_MemoryRemaining
+#define trap_R_RegisterFont trapcg_R_RegisterFont
+#define trap_Key_IsDown trapcg_Key_IsDown
+#define trap_Key_GetCatcher trapcg_Key_GetCatcher
+#define trap_Key_SetCatcher trapcg_Key_SetCatcher
+#define trap_Key_GetKey trapcg_Key_GetKey
+#define trap_CIN_PlayCinematic trapcg_CIN_PlayCinematic
+#define trap_CIN_StopCinematic trapcg_CIN_StopCinematic
+#define trap_CIN_RunCinematic  trapcg_CIN_RunCinematic 
+#define trap_CIN_DrawCinematic  trapcg_CIN_DrawCinematic 
+#define trap_CIN_SetExtents  trapcg_CIN_SetExtents 
+//#define trap_SnapVector trapcg_SnapVector
+#define trap_loadCamera trapcg_loadCamera
+#define trap_startCamera trapcg_startCamera
+#define trap_stopCamera trapcg_stopCamera
+#define trap_getCameraInfo trapcg_getCameraInfo
+#define trap_GetEntityToken trapcg_GetEntityToken
+#define trap_GetValue trapcg_GetValue
+#define trap_R_AddRefEntityToScene2 trapcg_R_AddRefEntityToScene2
+#define trap_R_AddLinearLightToScene trapcg_R_AddLinearLightToScene
+#define dll_com_trapGetValue cg_trapGetValue
+#endif
+
+/*
+#ifndef BUILD_GAME_STATIC
+#define CG_Display_CaptureItem Display_CaptureItem 
+#define CG_Display_CursorType Display_CursorType
+#define CG_Display_HandleKey Display_HandleKey
+#define CG_Display_MouseMove Display_MouseMove
+#define CG_Menu_New Menu_New
+#define CG_Menu_Paint Menu_Paint
+#define CG_Menu_PaintAll Menu_PaintAll
+#define CG_Menu_Reset Menu_Reset
+#define CG_Menu_ScrollFeeder Menu_ScrollFeeder
+#define CG_Menu_SetFeederSelection Menu_SetFeederSelection
+#define CG_Menus_CloseByName Menus_CloseByName
+#define CG_Menus_FindByName Menus_FindByName
+#define CG_Menus_OpenByName Menus_OpenByName
+#define CG_String_Init String_Init
+#endif
+*/
 
 // print message on the local console
 void		trap_Print( const char *text );
@@ -1695,6 +1945,7 @@ void		trap_R_AddRefEntityToScene( const refEntity_t *re );
 // significant construction
 void		trap_R_AddPolyToScene( qhandle_t hShader , int numVerts, const polyVert_t *verts );
 void		trap_R_AddPolysToScene( qhandle_t hShader , int numVerts, const polyVert_t *verts, int numPolys );
+void    trap_R_AddPolyBufferToScene( polyBuffer_t* pPolyBuffer );
 void		trap_R_AddLightToScene( const vec3_t org, float intensity, float r, float g, float b );
 void		trap_R_AddAdditiveLightToScene( const vec3_t org, float intensity, float r, float g, float b );
 int			trap_R_LightForPoint( vec3_t point, vec3_t ambientLight, vec3_t directedLight, vec3_t lightDir );
@@ -1771,10 +2022,12 @@ void trap_CIN_SetExtents (int handle, int x, int y, int w, int h);
 void		trap_SnapVector( float *v );
 
 qboolean	trap_loadCamera(const char *name);
-void		trap_startCamera(int time);
-qboolean	trap_getCameraInfo(int time, vec3_t *origin, vec3_t *angles);
-
+void		trap_startCamera(int camNum, int time);
+qboolean	trap_getCameraInfo(int camNum, int time, vec3_t *origin, vec3_t *angles, float *fov);
+void		CG_StartCamera(const char *name, qboolean startBlack );
 qboolean	trap_GetEntityToken( char *buffer, int bufferSize );
+void trap_stopCamera(int camNum);
+
 
 void	CG_ClearParticles (void);
 void	CG_AddParticles (void);

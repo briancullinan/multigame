@@ -8,6 +8,11 @@
 #include "bg_local.h"
 
 pmove_t		*pm;
+int         *items;
+vec3_t      *portals;
+vec3_t      *portalsAngles;
+vec3_t      *destinations;
+vec3_t      *destinationsAngles;
 pml_t		pml;
 
 // movement parameters
@@ -15,6 +20,11 @@ float	pm_stopspeed = 100.0f;
 float	pm_duckScale = 0.25f;
 float	pm_swimScale = 0.50f;
 float	pm_wadeScale = 0.70f;
+#ifdef USE_LADDERS
+float  pm_ladderScale = 0.50;
+float  pm_ladderfriction = 3000;
+float  pm_ladderAccelerate = 3000;
+#endif
 
 float	pm_accelerate = 10.0f;
 float	pm_airaccelerate = 1.0f;
@@ -171,7 +181,11 @@ static void PM_Friction( void ) {
 		vel[0] = 0;
 		vel[1] = 0;		// allow sinking underwater
 		// FIXME: still have z friction underwater?
-		if ( pm->ps->pm_type == PM_SPECTATOR || pm->ps->powerups[ PW_FLIGHT ] )
+		if ( pm->ps->pm_type == PM_SPECTATOR || items[ITEM_PW_MIN + PW_FLIGHT] 
+#ifdef USE_RUNES
+      || items[ITEM_PW_MIN + RUNE_FLIGHT] 
+#endif
+    )
 			vel[2] = 0.0f; // no slow-sinking/raising movements
 		return;
 	}
@@ -195,9 +209,20 @@ static void PM_Friction( void ) {
 	}
 
 	// apply flying friction
-	if ( pm->ps->powerups[PW_FLIGHT]) {
+	if ( items[ITEM_PW_MIN + PW_FLIGHT]
+#ifdef USE_RUNES
+    || items[ITEM_PW_MIN + RUNE_FLIGHT]
+#endif
+  ) {
 		drop += speed*pm_flightfriction*pml.frametime;
 	}
+
+#ifdef USE_LADDERS
+  if ( pml.ladder ) // If they're on a ladder... 
+  {
+    drop += speed*pm_ladderfriction*pml.frametime;  // Add ladder friction! 
+  }
+#endif
 
 	if ( pm->ps->pm_type == PM_SPECTATOR) {
 		drop += speed*pm_spectatorfriction*pml.frametime;
@@ -364,7 +389,12 @@ static qboolean PM_CheckJump( void ) {
 	pm->ps->pm_flags |= PMF_JUMP_HELD;
 
 	pm->ps->groundEntityNum = ENTITYNUM_NONE;
+#ifdef USE_PHYSICS_VARS
+  // TODO: make this a part of gravity boots
+  pm->ps->velocity[2] = g_jumpVelocity.integer;
+#else
 	pm->ps->velocity[2] = JUMP_VELOCITY;
+#endif
 	PM_AddEvent( EV_JUMP );
 
 	if ( pm->cmd.forwardmove >= 0 ) {
@@ -643,6 +673,8 @@ static void PM_AirMove( void ) {
 	PM_StepSlideMove ( qtrue );
 }
 
+
+#ifdef USE_GRAPPLE
 /*
 ===================
 PM_GrappleMove
@@ -662,12 +694,14 @@ static void PM_GrappleMove( void ) {
 	if (vlen <= 100)
 		VectorScale(vel, 10 * vlen, vel);
 	else
-		VectorScale(vel, 800, vel);
+    VectorScale(vel, wp_grapplePull.value, vel);
 
 	VectorCopy(vel, pm->ps->velocity);
 
 	pml.groundPlane = qfalse;
 }
+#endif
+
 
 /*
 ===================
@@ -974,6 +1008,8 @@ static void PM_CrashLand( void ) {
 	// SURF_NODAMAGE is used for bounce pads where you don't ever
 	// want to take damage or play a crunch sound
 	if ( !(pml.groundTrace.surfaceFlags & SURF_NODAMAGE) )  {
+    
+    //Com_Printf("falling, ouch!\n");
 		if ( delta > 60 ) {
 			PM_AddEvent( EV_FALL_FAR );
 		} else if ( delta > 40 ) {
@@ -1107,6 +1143,15 @@ static void PM_GroundTrace( void ) {
 	pm->trace (&trace, pm->ps->origin, pm->mins, pm->maxs, point, pm->ps->clientNum, pm->tracemask);
 	pml.groundTrace = trace;
 
+#ifdef USE_PORTALS
+	{
+		// find nearest portal from our current trajectory the distance from the portal
+		// rerun the trace from the point of the portal
+	}
+
+
+#endif
+
 	// do something corrective if the trace starts in a solid...
 	if ( trace.allsolid ) {
 		if ( !PM_CorrectAllSolid(&trace) )
@@ -1142,7 +1187,12 @@ static void PM_GroundTrace( void ) {
 	}
 	
 	// slopes that are too steep will not be considered onground
-	if ( trace.plane.normal[2] < MIN_WALK_NORMAL ) {
+#ifdef USE_PHYSICS_VARS
+  if ( trace.plane.normal[2] < g_wallWalk.value )
+#else
+  if ( trace.plane.normal[2] < MIN_WALK_NORMAL )
+#endif
+  {
 		if ( pm->debugLevel ) {
 			Com_Printf("%i:steep\n", c_pmove);
 		}
@@ -1242,7 +1292,7 @@ static void PM_CheckDuck (void)
 {
 	trace_t	trace;
 
-	if ( pm->ps->powerups[PW_INVULNERABILITY] ) {
+	if ( items[ITEM_PW_MIN + PW_INVULNERABILITY] ) {
 		if ( pm->ps->pm_flags & PMF_INVULEXPAND ) {
 			// invulnerability sphere has a 42 units radius
 			VectorSet( pm->mins, -42, -42, -42 );
@@ -1326,7 +1376,7 @@ static void PM_Footsteps( void ) {
 
 	if ( pm->ps->groundEntityNum == ENTITYNUM_NONE ) {
 
-		if ( pm->ps->powerups[PW_INVULNERABILITY] ) {
+		if ( items[ITEM_PW_MIN + PW_INVULNERABILITY] ) {
 			PM_ContinueLegsAnim( LEGS_IDLECR );
 		}
 		// airborne leaves position in cycle intact, but doesn't advance
@@ -1490,7 +1540,7 @@ PM_FinishWeaponChange
 static void PM_FinishWeaponChange( void ) {
 	int		weapon;
 
-	weapon = pm->cmd.weapon;
+	weapon = pm->cmd.weapon & 0xF;
 	if ( weapon < WP_NONE || weapon >= WP_NUM_WEAPONS ) {
 		weapon = WP_NONE;
 	}
@@ -1499,7 +1549,7 @@ static void PM_FinishWeaponChange( void ) {
 		weapon = WP_NONE;
 	}
 
-	pm->ps->weapon = weapon;
+	pm->ps->weapon = pm->cmd.weapon;
 	pm->ps->weaponstate = WEAPON_RAISING;
 	pm->ps->eFlags &= ~EF_FIRING;
 	pm->ps->weaponTime += 250;
@@ -1559,7 +1609,8 @@ static void PM_Weapon( void ) {
 				// don't use medkit if at max health
 			} else {
 				pm->ps->pm_flags |= PMF_USE_ITEM_HELD;
-				PM_AddEvent( EV_USE_ITEM0 + bg_itemlist[pm->ps->stats[STAT_HOLDABLE_ITEM]].giTag );
+        BG_AddPredictableEventToPlayerstate( EV_USE_ITEM, bg_itemlist[pm->ps->stats[STAT_HOLDABLE_ITEM]].giTag, pm->ps, -1 );
+				//PM_AddEvent( EV_USE_ITEM0 + bg_itemlist[pm->ps->stats[STAT_HOLDABLE_ITEM]].giTag );
 				pm->ps->stats[STAT_HOLDABLE_ITEM] = 0;
 			}
 			return;
@@ -1579,7 +1630,7 @@ static void PM_Weapon( void ) {
 	// again if lowering or raising
 	if ( pm->ps->weaponTime <= 0 || pm->ps->weaponstate != WEAPON_FIRING ) {
 		if ( pm->ps->weapon != pm->cmd.weapon ) {
-			PM_BeginWeaponChange( pm->cmd.weapon );
+			PM_BeginWeaponChange( pm->cmd.weapon & 0xF );
 		}
 	}
 
@@ -1602,13 +1653,49 @@ static void PM_Weapon( void ) {
 		}
 		return;
 	}
-
+  
 	// check for fire
-	if ( ! (pm->cmd.buttons & BUTTON_ATTACK) ) {
+#ifdef USE_ALT_FIRE
+#ifdef USE_GRAPPLE
+  // this exits early with weapon time so alt grapple doesn't show weapon firing
+  if(!(pm->cmd.buttons & BUTTON_ATTACK)
+    && g_altGrapple.integer
+    && (pm->cmd.buttons & BUTTON_ALT_ATTACK)) {
+    // don't show fire animation
+    pm->ps->weaponTime = 0;
+		pm->ps->weaponstate = WEAPON_READY;
+  	PM_AddEvent( EV_ALTFIRE_WEAPON );
+    return;
+  } else
+#endif
+#ifdef USE_PORTALS
+  if(!(pm->cmd.buttons & BUTTON_ATTACK)
+    && g_altPortal.integer
+    && (pm->cmd.buttons & BUTTON_ALT_ATTACK)) {
+    // don't show fire animation
+    pm->ps->weaponTime = 0;
+		pm->ps->weaponstate = WEAPON_READY;
+  	PM_AddEvent( EV_ALTFIRE_WEAPON );
+  } else
+#endif
+#endif // end USE_ALT_FIRE
+#if defined(USE_GAME_FREEZETAG) || defined(USE_REFEREE_CMDS)
+  if(pm->ps->pm_type == PM_FROZEN) {
+    pm->ps->weaponTime = 0;
+		pm->ps->weaponstate = WEAPON_READY;
+		return;
+  } else
+#endif
+	if( !(pm->cmd.buttons & BUTTON_ATTACK) 
+#ifdef USE_ALT_FIRE
+    && !(pm->cmd.buttons & BUTTON_ALT_ATTACK)
+#endif
+  ) {
 		pm->ps->weaponTime = 0;
 		pm->ps->weaponstate = WEAPON_READY;
 		return;
 	}
+
 
 	// start the animation even if out of ammo
 	if ( pm->ps->weapon == WP_GAUNTLET ) {
@@ -1633,13 +1720,75 @@ static void PM_Weapon( void ) {
 	}
 
 	// take an ammo away if not infinite
-	if ( pm->ps->ammo[ pm->ps->weapon ] != -1 ) {
+	if ( pm->ps->ammo[ pm->ps->weapon ] != -1 && pm->ps->ammo[ pm->ps->weapon ] != INFINITE ) {
 		pm->ps->ammo[ pm->ps->weapon ]--;
 	}
 
 	// fire weapon
-	PM_AddEvent( EV_FIRE_WEAPON );
+#ifdef USE_ALT_FIRE
+  if ((pm->cmd.buttons & BUTTON_ALT_ATTACK)
+    && (pm->cmd.buttons & BUTTON_ATTACK))
+    PM_AddEvent( EV_ALTFIRE_BOTH );
+  else if (pm->cmd.buttons & BUTTON_ALT_ATTACK)
+  	PM_AddEvent( EV_ALTFIRE_WEAPON );
+  else if (pm->cmd.buttons & BUTTON_ATTACK)
+#endif
+  PM_AddEvent( EV_FIRE_WEAPON );
 
+#ifdef USE_WEAPON_VARS
+  switch( pm->ps->weapon ) {
+  default:
+  case WP_GAUNTLET:
+    addTime = wp_gauntCycle.integer;
+    break;
+  case WP_LIGHTNING:
+    addTime = wp_lightCycle.integer;
+    break;
+  case WP_SHOTGUN:
+    addTime = wp_shotgunCycle.integer;
+    break;
+  case WP_MACHINEGUN:
+    addTime = wp_machineCycle.integer;
+    break;
+  case WP_GRENADE_LAUNCHER:
+    addTime = wp_grenadeCycle.integer;
+    break;
+  case WP_ROCKET_LAUNCHER:
+    addTime = wp_rocketCycle.integer;
+    break;
+  case WP_PLASMAGUN:
+    addTime = wp_plasmaCycle.integer;
+    break;
+  case WP_RAILGUN:
+    addTime = wp_railCycle.integer;
+    break;
+  case WP_BFG:
+    addTime = wp_bfgCycle.integer;
+    break;
+#ifdef USE_GRAPPLE
+  case WP_GRAPPLING_HOOK:
+    addTime = wp_grappleCycle.integer;
+    break;
+#endif
+#ifdef MISSIONPACK
+  case WP_NAILGUN:
+    addTime = wp_nailCycle.integer;
+    break;
+  case WP_PROX_LAUNCHER:
+    addTime = wp_proxCycle.integer;
+    break;
+  case WP_CHAINGUN:
+    addTime = wp_chainCycle.integer;
+    break;
+#endif
+#ifdef USE_FLAME_THROWER
+  case WP_FLAME_THROWER:
+    addTime = wp_flameCycle.integer;
+    break;
+#endif
+  }
+
+#else // USE_WEAPON_VARS
 	switch( pm->ps->weapon ) {
 	default:
 	case WP_GAUNTLET:
@@ -1667,11 +1816,18 @@ static void PM_Weapon( void ) {
 		addTime = 1500;
 		break;
 	case WP_BFG:
+#ifdef USE_PORTALS
+    if(wp_portalEnable.integer) {
+      addTime = 1000;
+    } else
+#endif
 		addTime = 200;
 		break;
+#ifdef USE_GRAPPLE
 	case WP_GRAPPLING_HOOK:
 		addTime = 400;
 		break;
+#endif
 #ifdef MISSIONPACK
 	case WP_NAILGUN:
 		addTime = 1000;
@@ -1683,11 +1839,38 @@ static void PM_Weapon( void ) {
 		addTime = 30;
 		break;
 #endif
+#ifdef USE_FLAME_THROWER
+  case WP_FLAME_THROWER:
+  	addTime = 40;
+    break;
+#endif
 	}
+#endif
 
+#ifdef USE_ALT_FIRE
+  // Hypo: simple alt-fire example
+  if (pm->cmd.buttons & BUTTON_ALT_ATTACK) {
+#ifdef USE_PORTALS
+    if(wp_portalEnable.integer
+      && pm->ps->weapon == WP_BFG) {
+      // do nothing to speed
+    } else
+#endif
+#ifdef USE_GRAPPLE
+    if(g_altGrapple.integer) {
+      // do nothing
+    } else
+#endif
+  	addTime /= 2.0;
+  } else
+#endif
 #ifdef MISSIONPACK
 	if( bg_itemlist[pm->ps->stats[STAT_PERSISTANT_POWERUP]].giTag == PW_SCOUT ) {
+#ifdef USE_PHYSICS_VARS
+    addTime /= g_scoutFactor.value;
+#else
 		addTime /= 1.5;
+#endif
 	}
 	else
 	if( bg_itemlist[pm->ps->stats[STAT_PERSISTANT_POWERUP]].giTag == PW_AMMOREGEN ) {
@@ -1695,8 +1878,16 @@ static void PM_Weapon( void ) {
   }
   else
 #endif
-	if ( pm->ps->powerups[PW_HASTE] ) {
+	if ( items[ITEM_PW_MIN + PW_HASTE] 
+#ifdef USE_RUNES
+    || items[ITEM_PW_MIN + RUNE_HASTE]
+#endif
+  ) {
+#ifdef USE_PHYSICS_VARS
+    addTime /= g_hasteFactor.value;
+#else
 		addTime /= 1.3;
+#endif
 	}
 
 	pm->ps->weaponTime += addTime;
@@ -1799,6 +1990,12 @@ void PM_UpdateViewAngles( playerState_t *ps, const usercmd_t *cmd ) {
 		return;		// no view changes at all
 	}
 
+#if defined(USE_GAME_FREEZETAG) || defined(USE_REFEREE_CMDS)
+  if(ps->pm_type == PM_FROZEN) {
+    return; // also no changes at all
+  }
+#endif
+
 	if ( ps->pm_type != PM_SPECTATOR && ps->stats[STAT_HEALTH] <= 0 ) {
 		return;		// no view changes at all
 	}
@@ -1822,6 +2019,91 @@ void PM_UpdateViewAngles( playerState_t *ps, const usercmd_t *cmd ) {
 }
 
 
+#ifdef USE_LADDERS
+/*
+===================
+PM_LadderMove()
+by: Calrathan [Arthur Tomlin]
+
+Right now all I know is that this works for VERTICAL ladders. 
+Ladders with angles on them (urban2 for AQ2) haven't been tested.
+===================
+*/
+static void PM_LadderMove( void ) {
+	int i;
+	vec3_t wishvel;
+	float wishspeed;
+	vec3_t wishdir;
+	float scale;
+	float vel;
+
+	PM_Friction ();
+
+	scale = PM_CmdScale( &pm->cmd );
+
+	// user intentions [what the user is attempting to do]
+	if ( !scale ) { 
+		wishvel[0] = 0;
+		wishvel[1] = 0;
+		wishvel[2] = 0;
+	}
+	else {   // if they're trying to move... lets calculate it
+		for (i=0 ; i<3 ; i++)
+			wishvel[i] = scale * pml.forward[i]*pm->cmd.forwardmove +
+				     scale * pml.right[i]*pm->cmd.rightmove; 
+		wishvel[2] += scale * pm->cmd.upmove;
+	}
+
+	VectorCopy (wishvel, wishdir);
+	wishspeed = VectorNormalize(wishdir);
+
+	if ( wishspeed > pm->ps->speed * pm_ladderScale ) {
+		wishspeed = pm->ps->speed * pm_ladderScale;
+	}
+
+	PM_Accelerate (wishdir, wishspeed, pm_ladderAccelerate);
+
+	// This SHOULD help us with sloped ladders, but it remains untested.
+	if ( pml.groundPlane && DotProduct( pm->ps->velocity,
+		pml.groundTrace.plane.normal ) < 0 ) {
+		vel = VectorLength(pm->ps->velocity);
+		// slide along the ground plane [the ladder section under our feet] 
+		PM_ClipVelocity (pm->ps->velocity, pml.groundTrace.plane.normal, 
+			pm->ps->velocity, OVERCLIP );
+
+		VectorNormalize(pm->ps->velocity);
+		VectorScale(pm->ps->velocity, vel, pm->ps->velocity);
+	}
+
+	PM_SlideMove( qfalse ); // move without gravity
+}
+
+
+/*
+=============
+CheckLadder [ ARTHUR TOMLIN ]
+=============
+*/
+static void CheckLadder( void )
+{
+	vec3_t flatforward,spot;
+	trace_t trace;
+	pml.ladder = qfalse;
+	// check for ladder
+	flatforward[0] = pml.forward[0];
+	flatforward[1] = pml.forward[1];
+	flatforward[2] = 0;
+	VectorNormalize (flatforward);
+	VectorMA (pm->ps->origin, 1, flatforward, spot);
+	pm->trace (&trace, pm->ps->origin, pm->mins, pm->maxs, spot,
+		pm->ps->clientNum, MASK_PLAYERSOLID);
+
+	if ((trace.fraction < 1) && (trace.surfaceFlags & SURF_LADDER))
+		pml.ladder = qtrue;
+
+}
+#endif
+
 /*
 ================
 PmoveSingle
@@ -1830,8 +2112,14 @@ PmoveSingle
 */
 void trap_SnapVector( float *v );
 
-void PmoveSingle (pmove_t *pmove) {
+static void PmoveSingle (pmove_t *pmove, int *itms, vec3_t *prtls, vec3_t *dstnts, 
+	vec3_t *prtlsNgls, vec3_t *dstntsNgls) {
 	pm = pmove;
+	items = itms;
+	portals = prtls;
+	destinations = dstnts;
+	portalsAngles = prtlsNgls;
+	destinationsAngles = dstntsNgls;
 
 	// this counter lets us debug movement problems with a journal
 	// by setting a conditional breakpoint fot the previous frame
@@ -1860,8 +2148,13 @@ void PmoveSingle (pmove_t *pmove) {
 	}
 
 	// set the firing flag for continuous beam weapons
-	if ( !(pm->ps->pm_flags & PMF_RESPAWNED) && pm->ps->pm_type != PM_INTERMISSION && pm->ps->pm_type != PM_NOCLIP
-		&& ( pm->cmd.buttons & BUTTON_ATTACK ) && pm->ps->ammo[ pm->ps->weapon ] ) {
+	if ( !(pm->ps->pm_flags & PMF_RESPAWNED) && pm->ps->pm_type != PM_INTERMISSION 
+    && pm->ps->pm_type != PM_NOCLIP
+		&& ( pm->cmd.buttons & BUTTON_ATTACK ) && pm->ps->ammo[ pm->ps->weapon ]
+#if defined(USE_GAME_FREEZETAG) || defined(USE_REFEREE_CMDS)
+    && pm->ps->pm_type != PM_FROZEN
+#endif
+  ) {
 		pm->ps->eFlags |= EF_FIRING;
 	} else {
 		pm->ps->eFlags &= ~EF_FIRING;
@@ -1906,7 +2199,7 @@ void PmoveSingle (pmove_t *pmove) {
 	pml.frametime = pml.msec * 0.001;
 
 	// update the viewangles
-	PM_UpdateViewAngles( pm->ps, &pm->cmd );
+  PM_UpdateViewAngles( pm->ps, &pm->cmd );
 
 	AngleVectors (pm->ps->viewangles, pml.forward, pml.right, pml.up);
 
@@ -1922,7 +2215,11 @@ void PmoveSingle (pmove_t *pmove) {
 		pm->ps->pm_flags &= ~PMF_BACKWARDS_RUN;
 	}
 
-	if ( pm->ps->pm_type >= PM_DEAD ) {
+	if ( pm->ps->pm_type >= PM_DEAD
+#if defined(USE_GAME_FREEZETAG) || defined(USE_REFEREE_CMDS)
+    || pm->ps->pm_type == PM_FROZEN
+#endif
+  ) {
 		pm->cmd.forwardmove = 0;
 		pm->cmd.rightmove = 0;
 		pm->cmd.upmove = 0;
@@ -1971,24 +2268,39 @@ void PmoveSingle (pmove_t *pmove) {
 	}
 
 	PM_DropTimers();
+#ifdef USE_LADDERS
+  CheckLadder();  // ARTHUR TOMLIN check and see if they're on a ladder
+#endif
 
 #ifdef MISSIONPACK
-	if ( pm->ps->powerups[PW_INVULNERABILITY] ) {
+	if ( items[ITEM_PW_MIN + PW_INVULNERABILITY] ) {
 		PM_InvulnerabilityMove();
 	} else
 #endif
-	if ( pm->ps->powerups[PW_FLIGHT] ) {
+	if ( items[ITEM_PW_MIN + PW_FLIGHT] 
+#ifdef USE_RUNES
+    || items[ITEM_PW_MIN + RUNE_FLIGHT]
+#endif
+  ) {
 		// flight powerup doesn't allow jump and has different friction
 		PM_FlyMove();
-	} else if (pm->ps->pm_flags & PMF_GRAPPLE_PULL) {
+	} else 
+#ifdef USE_GRAPPLE
+  if (pm->ps->pm_flags & PMF_GRAPPLE_PULL) {
 		PM_GrappleMove();
 		// We can wiggle a bit
 		PM_AirMove();
-	} else if (pm->ps->pm_flags & PMF_TIME_WATERJUMP) {
+	} else 
+#endif
+  if (pm->ps->pm_flags & PMF_TIME_WATERJUMP) {
 		PM_WaterJumpMove();
 	} else if ( pm->waterlevel > 1 ) {
 		// swimming
 		PM_WaterMove();
+#ifdef USE_LADDERS
+  } else if (pml.ladder) {	
+		PM_LadderMove();
+#endif
 	} else if ( pml.walking ) {
 		// walking on ground
 		PM_WalkMove();
@@ -2015,7 +2327,11 @@ void PmoveSingle (pmove_t *pmove) {
 	// entering / leaving water splashes
 	PM_WaterEvents();
 
-	if ( pm->ps->powerups[PW_FLIGHT] && !pml.groundPlane ) {
+	if ( (items[ITEM_PW_MIN + PW_FLIGHT]
+#ifdef USE_RUNES
+    || items[ITEM_PW_MIN + RUNE_FLIGHT]
+#endif
+  ) && !pml.groundPlane ) {
 		// don't snap velocity in free-fly or we will be not able to stop via flight friction
 		return;
 	}
@@ -2032,7 +2348,8 @@ Pmove
 Can be called by either the server or the client
 ================
 */
-void Pmove (pmove_t *pmove) {
+void Pmove (pmove_t *pmove, int *items, vec3_t *portals, vec3_t *destinations, 
+	vec3_t *portalsAngles, vec3_t *destinationsAngles) {
 	int			finalTime;
 
 	finalTime = pmove->cmd.serverTime;
@@ -2069,7 +2386,7 @@ void Pmove (pmove_t *pmove) {
 			}
 		}
 		pmove->cmd.serverTime = pmove->ps->commandTime + msec;
-		PmoveSingle( pmove );
+		PmoveSingle( pmove, items, portals, destinations, portalsAngles, destinationsAngles );
 
 		if ( pmove->ps->pm_flags & PMF_JUMP_HELD ) {
 			pmove->cmd.upmove = 20;

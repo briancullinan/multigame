@@ -111,7 +111,9 @@ extern vmCvar_t	ui_smallFont;
 extern vmCvar_t	ui_bigFont;
 extern vmCvar_t ui_serverStatusTimeOut;
 
-
+extern vmCvar_t ui_breadCrumb;
+extern vmCvar_t ui_lazyLoad;
+extern vmCvar_t ui_developer;
 
 //
 // ui_qmenu.c
@@ -332,13 +334,13 @@ extern sfxHandle_t	MenuField_Key( menufield_s* m, int* key );
 //
 // ui_main.c
 //
-void UI_Report();
-void UI_Load();
+void UI_Report( void );
+void UI_Load( void );
 void UI_LoadMenus(const char *menuFile, qboolean reset);
 void _UI_SetActiveMenu( uiMenuCommand_t menu );
 int UI_AdjustTimeByGame(int time);
 void UI_ShowPostGame(qboolean newHigh);
-void UI_ClearScores();
+void UI_ClearScores( void );
 void UI_LoadArenas(void);
 
 //
@@ -548,10 +550,10 @@ typedef struct {
 	int				realWeapon;
 } playerInfo_t;
 
-void UI_DrawPlayer( float x, float y, float w, float h, playerInfo_t *pi, int time );
-void UI_PlayerInfo_SetModel( playerInfo_t *pi, const char *model, const char *headmodel, char *teamName );
-void UI_PlayerInfo_SetInfo( playerInfo_t *pi, int legsAnim, int torsoAnim, vec3_t viewAngles, vec3_t moveAngles, weapon_t weaponNum, qboolean chat );
-qboolean UI_RegisterClientModelname( playerInfo_t *pi, const char *modelSkinName , const char *headName, const char *teamName);
+void UI_DrawPlayer2( float x, float y, float w, float h, playerInfo_t *pi, int time );
+void UI_PlayerInfo_SetModel2( playerInfo_t *pi, const char *model, const char *headmodel, char *teamName );
+void UI_PlayerInfo_SetInfo2( playerInfo_t *pi, int legsAnim, int torsoAnim, vec3_t viewAngles, vec3_t moveAngles, weapon_t weaponNum, qboolean chat );
+qboolean UI_RegisterClientModelname2( playerInfo_t *pi, const char *modelSkinName , const char *headName, const char *teamName);
 
 //
 // ui_atoms.c
@@ -822,6 +824,7 @@ typedef struct {
 	int effectsColor;
 
 	qboolean inGameLoad;
+	int startTime;
 
 }	uiInfo_t;
 
@@ -830,13 +833,12 @@ extern uiInfo_t uiInfo;
 
 extern void			UI_Init( void );
 extern void			UI_Shutdown( void );
-extern void			UI_KeyEvent( int key );
+extern void			UI_KeyEvent( int key, int down );
 extern void			UI_MouseEvent( int dx, int dy );
 extern void			UI_Refresh( int realtime );
 extern qboolean		UI_ConsoleCommand( int realTime );
 extern float		UI_ClampCvar( float min, float max, float value );
-extern void			UI_DrawNamedPic( float x, float y, float width, float height, const char *picname );
-extern void			UI_DrawHandlePic( float x, float y, float w, float h, qhandle_t hShader ); 
+extern void			UI_DrawHandlePic2( float x, float y, float w, float h, qhandle_t hShader ); 
 extern void			UI_FillRect( float x, float y, float width, float height, const float *color );
 extern void			UI_DrawRect( float x, float y, float width, float height, const float *color );
 extern void     UI_DrawTopBottom(float x, float y, float w, float h);
@@ -851,7 +853,7 @@ extern int			UI_ProportionalStringWidth( const char* str );
 extern void			UI_DrawString( int x, int y, const char* str, int style, vec4_t color );
 extern void			UI_DrawChar( int x, int y, int ch, int style, vec4_t color );
 extern qboolean 	UI_CursorInRect (int x, int y, int width, int height);
-extern void			UI_AdjustFrom640( float *x, float *y, float *w, float *h );
+extern void			UI_AdjustFrom6402( float *x, float *y, float *w, float *h );
 extern void			UI_DrawTextBox (int x, int y, int width, int lines);
 extern qboolean		UI_IsFullscreen( void );
 extern void			UI_SetActiveMenu( uiMenuCommand_t menu );
@@ -861,7 +863,6 @@ extern void			UI_ForceMenuOff (void);
 extern char			*UI_Argv( int arg );
 extern char			*UI_Cvar_VariableString( const char *var_name );
 extern void			UI_Refresh( int time );
-extern void			UI_KeyEvent( int key );
 extern void			UI_StartDemoLoop( void );
 extern qboolean		m_entersound;
 void UI_LoadBestScores(const char *map, int game);
@@ -895,6 +896,91 @@ void UI_SPSkillMenu_Cache( void );
 //
 // ui_syscalls.c
 //
+#ifdef BUILD_GAME_STATIC
+#define trap_Print trapui_Print
+#define trap_Error trapui_Error
+#define trap_Milliseconds trapui_Milliseconds
+#define trap_Cvar_Register trapui_Cvar_Register
+#define trap_Cvar_Update trapui_Cvar_Update
+#define trap_Cvar_Set trapui_Cvar_Set
+#define trap_Cvar_VariableValue trapui_Cvar_VariableValue
+#define trap_Cvar_VariableStringBuffer trapui_Cvar_VariableStringBuffer
+#define trap_Cvar_SetValue trapui_Cvar_SetValue
+#define trap_Cvar_Reset trapui_Cvar_Reset
+#define trap_Cvar_Create trapui_Cvar_Create
+#define trap_Cvar_InfoStringBuffer trapui_Cvar_InfoStringBuffer
+#define trap_Argc trapui_Argc
+#define trap_Argv trapui_Argv
+#define trap_Cmd_ExecuteText trapui_Cmd_ExecuteText
+#define trap_FS_FOpenFile trapui_FS_FOpenFile
+#define trap_FS_Read trapui_FS_Read
+#define trap_FS_Write trapui_FS_Write
+#define trap_FS_FCloseFile trapui_FS_FCloseFile
+#define trap_FS_GetFileList trapui_FS_GetFileList
+#define trap_FS_Seek trapui_FS_Seek
+#define trap_R_RegisterModel trapui_R_RegisterModel
+#define trap_R_RegisterSkin trapui_R_RegisterSkin
+#define trap_R_RegisterShaderNoMip trapui_R_RegisterShaderNoMip
+#define trap_R_ClearScene trapui_R_ClearScene
+#define trap_R_AddRefEntityToScene trapui_R_AddRefEntityToScene
+#define trap_R_AddPolyToScene trapui_R_AddPolyToScene
+#define trap_R_AddLightToScene trapui_R_AddLightToScene
+#define trap_R_RenderScene trapui_R_RenderScene
+#define trap_R_SetColor trapui_R_SetColor
+#define trap_R_DrawStretchPic trapui_R_DrawStretchPic
+#define trap_R_ModelBounds trapui_R_ModelBounds
+#define trap_UpdateScreen trapui_UpdateScreen
+#define trap_CM_LerpTag trapui_CM_LerpTag
+#define trap_S_StartLocalSound trapui_S_StartLocalSound
+#define trap_S_RegisterSound trapui_S_RegisterSound
+#define trap_Key_KeynumToStringBuf trapui_Key_KeynumToStringBuf
+#define trap_Key_GetBindingBuf trapui_Key_GetBindingBuf
+#define trap_Key_SetBinding trapui_Key_SetBinding
+#define trap_Key_IsDown trapui_Key_IsDown
+#define trap_Key_GetOverstrikeMode trapui_Key_GetOverstrikeMode
+#define trap_Key_SetOverstrikeMode trapui_Key_SetOverstrikeMode
+#define trap_Key_ClearStates trapui_Key_ClearStates
+#define trap_Key_GetCatcher trapui_Key_GetCatcher
+#define trap_Key_SetCatcher trapui_Key_SetCatcher
+#define trap_GetClipboardData trapui_GetClipboardData
+#define trap_GetClientState trapui_GetClientState
+#define trap_GetGlconfig trapui_GetGlconfig
+#define trap_GetConfigString trapui_GetConfigString
+#define trap_LAN_GetServerCount trapui_LAN_GetServerCount
+#define trap_LAN_GetServerAddressString trapui_LAN_GetServerAddressString
+#define trap_LAN_GetServerInfo trapui_LAN_GetServerInfo
+#define trap_LAN_GetServerPing trapui_LAN_GetServerPing
+#define trap_LAN_GetPingQueueCount trapui_LAN_GetPingQueueCount
+#define trap_LAN_ClearPing trapui_LAN_ClearPing
+#define trap_LAN_GetPing trapui_LAN_GetPing
+#define trap_LAN_GetPingInfo trapui_LAN_GetPingInfo
+#define trap_LAN_LoadCachedServers trapui_LAN_LoadCachedServers
+#define trap_LAN_SaveCachedServers trapui_LAN_SaveCachedServers
+#define trap_LAN_MarkServerVisible trapui_LAN_MarkServerVisible
+#define trap_LAN_ServerIsVisible trapui_LAN_ServerIsVisible
+#define trap_LAN_UpdateVisiblePings trapui_LAN_UpdateVisiblePings
+#define trap_LAN_AddServer trapui_LAN_AddServer
+#define trap_LAN_RemoveServer trapui_LAN_RemoveServer
+#define trap_LAN_ResetPings trapui_LAN_ResetPings
+#define trap_LAN_ServerStatus trapui_LAN_ServerStatus
+#define trap_LAN_CompareServers trapui_LAN_CompareServers
+#define trap_MemoryRemaining trapui_MemoryRemaining
+#define trap_GetCDKey trapui_GetCDKey
+#define trap_SetCDKey trapui_SetCDKey
+#define trap_R_RegisterFont trapui_R_RegisterFont
+#define trap_S_StopBackgroundTrack trapui_S_StopBackgroundTrack
+#define trap_S_StartBackgroundTrack trapui_S_StartBackgroundTrack
+#define trap_CIN_PlayCinematic trapui_CIN_PlayCinematic
+#define trap_CIN_StopCinematic trapui_CIN_StopCinematic
+#define trap_CIN_RunCinematic  trapui_CIN_RunCinematic 
+#define trap_CIN_DrawCinematic  trapui_CIN_DrawCinematic 
+#define trap_CIN_SetExtents  trapui_CIN_SetExtents 
+#define trap_RealTime trapui_RealTime
+#define trap_R_RemapShader trapui_R_RemapShader
+#define trap_VerifyCDKey trapui_VerifyCDKey
+#define trap_SetPbClStatus trapui_SetPbClStatus
+#endif
+
 void			trap_Print( const char *string );
 void			trap_Error( const char *string );
 int				trap_Milliseconds( void );
@@ -915,7 +1001,7 @@ void			trap_FS_Read( void *buffer, int len, fileHandle_t f );
 void			trap_FS_Write( const void *buffer, int len, fileHandle_t f );
 void			trap_FS_FCloseFile( fileHandle_t f );
 int				trap_FS_GetFileList(  const char *path, const char *extension, char *listbuf, int bufsize );
-int				trap_FS_Seek( fileHandle_t f, long offset, int origin ); // fsOrigin_t
+int				trap_FS_Seek( fileHandle_t f, long offset, fsOrigin_t origin );
 qhandle_t		trap_R_RegisterModel( const char *name );
 qhandle_t		trap_R_RegisterSkin( const char *name );
 qhandle_t		trap_R_RegisterShaderNoMip( const char *name );
@@ -952,8 +1038,8 @@ int				trap_LAN_GetPingQueueCount( void );
 void			trap_LAN_ClearPing( int n );
 void			trap_LAN_GetPing( int n, char *buf, int buflen, int *pingtime );
 void			trap_LAN_GetPingInfo( int n, char *buf, int buflen );
-void			trap_LAN_LoadCachedServers();
-void			trap_LAN_SaveCachedServers();
+void			trap_LAN_LoadCachedServers( void );
+void			trap_LAN_SaveCachedServers( void );
 void			trap_LAN_MarkServerVisible(int source, int n, qboolean visible);
 int				trap_LAN_ServerIsVisible( int source, int n);
 qboolean		trap_LAN_UpdateVisiblePings( int source );

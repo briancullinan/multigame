@@ -480,11 +480,15 @@ gentity_t *G_TempEntity( vec3_t origin, int event ) {
 	vec3_t		snapped;
 
 	e = G_Spawn();
-	e->s.eType = ET_EVENTS + event;
 
 	e->classname = "tempEntity";
-	e->eventTime = level.time;
-	e->freeAfterEvent = qtrue;
+  if(!event) {
+    e->freeAfterEvent = qfalse;
+  } else {
+    e->s.eType = ET_EVENTS + event;
+  	e->eventTime = level.time;
+  	e->freeAfterEvent = qtrue;
+  }
 
 	VectorCopy( origin, snapped );
 	SnapVector( snapped );		// save network bandwidth
@@ -658,3 +662,35 @@ int DebugLine(vec3_t start, vec3_t end, int color) {
 
 	return trap_DebugPolygonCreate(color, 4, points);
 }
+
+#ifdef USE_VORTEX_GRENADES
+/*
+================
+findradius
+================
+*/
+gentity_t *findradius (gentity_t *ent, vec3_t org, float rad) {
+
+	vec3_t eorg;
+	int j;
+
+	if (!ent)
+		ent = g_entities;
+	else
+		ent++;
+
+	for (; ent < &g_entities[level.num_entities]; ent++)
+		{
+		if (!ent->inuse)
+			continue;
+
+		for (j=0; j<3; j++)
+			eorg[j] = org[j] - (ent->r.currentOrigin[j] + 
+			(ent->r.mins[j] + ent->r.maxs[j])*0.5);
+		if (VectorLength(eorg) > rad)
+			continue;
+		return ent;
+	}
+	return NULL;
+}
+#endif

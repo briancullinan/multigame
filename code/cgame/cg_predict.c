@@ -9,6 +9,11 @@
 
 static	pmove_t		cg_pmove;
 
+#ifdef USE_SINGLEPLAYER // entity
+int player_stop = 0;
+int black_bars = 0;
+#endif
+
 static	int			cg_numSolidEntities;
 static	centity_t	*cg_solidEntities[MAX_ENTITIES_IN_SNAPSHOT];
 static	int			cg_numTriggerEntities;
@@ -207,7 +212,6 @@ static void CG_InterpolatePlayerState( qboolean grabAngles ) {
 
 		cmdNum = trap_GetCurrentCmdNumber();
 		trap_GetUserCmd( cmdNum, &cmd );
-
 		PM_UpdateViewAngles( out, &cmd );
 	}
 
@@ -322,7 +326,11 @@ static void CG_AddArmor( const gitem_t *item, int quantity ) {
 
 static void CG_AddAmmo( int weapon, int count )
 {
-	if ( weapon == WP_GAUNTLET || weapon == WP_GRAPPLING_HOOK ) {
+	if ( weapon == WP_GAUNTLET 
+#ifdef USE_GRAPPLE
+		|| weapon == WP_GRAPPLING_HOOK 
+#endif
+	) {
 		cg.predictedPlayerState.ammo[weapon] = -1;
 	} else {
 		cg.predictedPlayerState.ammo[weapon] += count;
@@ -381,7 +389,12 @@ static int CG_CheckArmor( int damage ) {
 {
 	int take, asave;
 
-	if ( cg.predictedPlayerState.powerups[ PW_BATTLESUIT ] )
+#ifdef USE_RUNES
+  if ( cg_entities[cg.snap->ps.clientNum].items[ITEM_PW_MIN + RUNE_RESIST] )
+    return;
+#endif
+
+	if ( cg_entities[cg.snap->ps.clientNum].items[ITEM_PW_MIN + PW_BATTLESUIT] )
 		return;
 
 	if ( cg.predictedPlayerState.clientNum != cg.snap->ps.clientNum || cg.snap->ps.pm_flags & PMF_FOLLOW ) {
@@ -444,16 +457,33 @@ static void CG_PickupPrediction( centity_t *cent, const gitem_t *item ) {
 	}
 
 	// powerups prediction
-	if ( item->giType == IT_POWERUP && item->giTag >= PW_QUAD && item->giTag <= PW_FLIGHT ) {
+	if ( item->giType == IT_POWERUP && ((item->giTag >= PW_QUAD && item->giTag <= PW_FLIGHT) 
+#ifdef USE_RUNES
+    || (item->giTag >= RUNE_STRENGTH && item->giTag <= RUNE_LITHIUM)
+#endif
+  )) {
 		// round timing to seconds to make multiple powerup timers count in sync
-		if ( !cg.predictedPlayerState.powerups[ item->giTag ] ) {
-			cg.predictedPlayerState.powerups[ item->giTag ] = cg.predictedPlayerState.commandTime - ( cg.predictedPlayerState.commandTime % 1000 );
+		if ( !cg_entities[cg.snap->ps.clientNum].items[ ITEM_PW_MIN + item->giTag ] ) {
+			cg_entities[cg.snap->ps.clientNum].items[ ITEM_PW_MIN + item->giTag ] = cg.predictedPlayerState.commandTime - ( cg.predictedPlayerState.commandTime % 1000 );
 			// this assumption is correct only on transition and implies hardcoded 1.3 coefficient:
-			if ( item->giTag == PW_HASTE ) {
+			if ( item->giTag == PW_HASTE 
+#ifdef USE_RUNES
+        || item->giTag == RUNE_HASTE
+#endif
+      ) {
+#ifdef USE_PHYSICS_VARS
+        cg.predictedPlayerState.speed *= cg_hasteFactor.value;
+#else
 				cg.predictedPlayerState.speed *= 1.3f;
+#endif
 			}
 		}
-		cg.predictedPlayerState.powerups[ item->giTag ] += cent->currentState.time2 * 1000;
+		cg_entities[cg.snap->ps.clientNum].items[ ITEM_PW_MIN + item->giTag ] += cent->currentState.time2 * 1000;
+#ifdef USE_RUNES
+    if(item->giTag >= RUNE_STRENGTH && item->giTag <= RUNE_LITHIUM) {
+      cg_entities[cg.snap->ps.clientNum].rune = ITEM_PW_MIN + item->giTag;
+    }
+#endif
 	}	
 
 	// holdable prediction
@@ -470,6 +500,9 @@ CG_TouchItem
 */
 static void CG_TouchItem( centity_t *cent ) {
 	const gitem_t *item;
+#ifdef USE_WEAPON_ORDER
+  qboolean alreadyHad = qfalse;
+#endif
 
 	if ( cg.allowPickupPrediction && cg.allowPickupPrediction > cg.time ) {
 		return;
@@ -488,7 +521,7 @@ static void CG_TouchItem( centity_t *cent ) {
 		return;
 	}
 
-	if ( !BG_CanItemBeGrabbed( cgs.gametype, &cent->currentState, &cg.predictedPlayerState ) ) {
+	if ( !BG_CanItemBeGrabbed( cgs.gametype, &cent->currentState, &cg.predictedPlayerState, cent->items ) ) {
 		return;	// can't hold it
 	}
 
@@ -502,10 +535,11 @@ static void CG_TouchItem( centity_t *cent ) {
 			return;
 		}
 	}
-	if( cgs.gametype == GT_CTF || cgs.gametype == GT_HARVESTER ) {
+	if( cgs.gametype == GT_CTF || cgs.gametype == GT_HARVESTER )
 #else
-	if( cgs.gametype == GT_CTF ) {
+	if( cgs.gametype == GT_CTF )
 #endif
+  {
 		if (cg.predictedPlayerState.persistant[PERS_TEAM] == TEAM_RED &&
 			item->giType == IT_TEAM && item->giTag == PW_REDFLAG)
 			return;
@@ -514,8 +548,24 @@ static void CG_TouchItem( centity_t *cent ) {
 			return;
 	}
 
+#ifdef USE_RUNES
+  // can only pick up one rune at a time
+  if(cg_entities[cg.snap->ps.clientNum].rune
+    && item->giType == IT_POWERUP
+    && item->giTag >= RUNE_STRENGTH && item->giTag <= RUNE_LITHIUM) {
+    return;
+  }
+#endif
+
 	// grab it
+#ifdef USE_WEAPON_ORDER
+  if(item->giType == IT_WEAPON) {
+    alreadyHad = cg.snap->ps.stats[STAT_WEAPONS] & (1 << item->giTag);
+  }
+  BG_AddPredictableEventToPlayerstate( alreadyHad ? EV_ITEM_PICKUP2 : EV_ITEM_PICKUP, cent->currentState.modelindex , &cg.predictedPlayerState, cent - cg_entities );
+#else
 	BG_AddPredictableEventToPlayerstate( EV_ITEM_PICKUP, cent->currentState.modelindex , &cg.predictedPlayerState, cent - cg_entities );
+#endif
 
 	// perform prediction
 	CG_PickupPrediction( cent, item );
@@ -594,6 +644,21 @@ static void CG_TouchTriggerPrediction( void ) {
 		if ( ent->eType == ET_TELEPORT_TRIGGER ) {
 			cg.hyperspace = qtrue;
 		} else if ( ent->eType == ET_PUSH_TRIGGER ) {
+      // moved from bg_misc
+      // flying characters don't hit bounce pads
+      if(cg_entities[cg.snap->ps.clientNum].items[ITEM_PW_MIN + PW_FLIGHT])
+        continue;
+#ifdef USE_RUNES
+      if(cg_entities[cg.snap->ps.clientNum].items[ITEM_PW_MIN + RUNE_FLIGHT])
+        continue;
+#endif
+        
+#ifdef USE_GRAPPLE
+      if(cg.predictedPlayerState.weapon == WP_GRAPPLING_HOOK
+        && ent->eFlags & EF_FIRING)
+        continue;
+#endif
+
 			BG_TouchJumpPad( &cg.predictedPlayerState, ent );
 		}
 	}
@@ -607,7 +672,7 @@ static void CG_TouchTriggerPrediction( void ) {
 
 
 static void CG_CheckTimers( void ) {
-	int i;
+	int i, c;
 
 	// no prediction for spectators
 	if ( cg.predictedPlayerState.pm_type == PM_SPECTATOR ) {
@@ -621,7 +686,7 @@ static void CG_CheckTimers( void ) {
 	// periodic tasks
 	if ( cg.timeResidual && cg.predictedPlayerState.commandTime >= cg.timeResidual && !cg.thisFrameTeleport ) {
 		cg.timeResidual += 1000;
-		if ( cg.predictedPlayerState.powerups[ PW_REGEN ] ) {
+		if ( cg_entities[cg.snap->ps.clientNum].items[ ITEM_PW_MIN + PW_REGEN ] ) {
 			int maxhealth = cg.predictedPlayerState.stats[ STAT_MAX_HEALTH ];
 			if ( cg.predictedPlayerState.stats[ STAT_HEALTH ] < maxhealth ) {
 				cg.predictedPlayerState.stats[ STAT_HEALTH ] += 15;
@@ -647,13 +712,24 @@ static void CG_CheckTimers( void ) {
 	}
 
 	// turn off any expired powerups
-	for ( i = 0 ; i < MAX_POWERUPS ; i++ ) {
-		if ( !cg.predictedPlayerState.powerups[ i ] )
-			continue;
-		if ( cg.predictedPlayerState.powerups[ i ] < cg.predictedPlayerState.commandTime ) {
-			cg.predictedPlayerState.powerups[ i ] = 0;
-		}
-	}
+  for ( c = 0; c < MAX_CLIENTS; c++ ) {
+    if ( !cgs.clientinfo[c].infoValid ) {
+      continue;
+    }
+    
+  	for ( i = 0 ; i < PW_NUM_POWERUPS ; i++ ) {
+  		if ( !cg_entities[c].items[ ITEM_PW_MIN + i ] )
+  			continue;
+  #if defined(USE_GAME_FREEZETAG) || defined(USE_REFEREE_CMDS)
+      if(i == PW_FROZEN) {
+        continue;      
+      }
+  #endif
+  		if ( cg_entities[c].items[ ITEM_PW_MIN + i ] < cg.predictedPlayerState.commandTime - 1000 ) {
+  			cg_entities[c].items[ ITEM_PW_MIN + i ] = 0;
+  		}
+  	}
+  }
 }
 
 
@@ -891,6 +967,7 @@ void CG_PredictPlayerState( void ) {
 	usercmd_t	oldestCmd;
 	usercmd_t	latestCmd;
 	int stateIndex = 0, predictCmd = 0;
+  vec3_t sources[32], destinations[32], sourcesAngles[32], destinationsAngles[32];
 
 	cg.hyperspace = qfalse;	// will be set if touching a trigger_teleport
 
@@ -1141,14 +1218,25 @@ void CG_PredictPlayerState( void ) {
 		if ( cg_pmove.pmove_fixed ) {
 			cg_pmove.cmd.serverTime = ((cg_pmove.cmd.serverTime + cg_pmove.pmove_msec-1) / cg_pmove.pmove_msec) * cg_pmove.pmove_msec;
 		}
+		if (cgs.scrFadeAlphaCurrent) {
+			cg_pmove.cmd.buttons = 0;
+			cg_pmove.cmd.forwardmove = 0;
+			cg_pmove.cmd.rightmove = 0;
+			cg_pmove.cmd.upmove = 0;
+			if (cg_pmove.cmd.serverTime - cg.predictedPlayerState.commandTime > 1)
+				cg_pmove.cmd.serverTime = cg.predictedPlayerState.commandTime + 1;
+		}
+
 #if 0
 		if ( !cg_optimizePrediction.integer ) {
-			Pmove (&cg_pmove);
+			Pmove (&cg_pmove, cg_entities[cg.snap->ps.clientNum].items);
 		} else 
 #endif
-		if ( /*cg_optimizePrediction.integer && */ ( cmdNum >= predictCmd || ( stateIndex + 1 ) % NUM_SAVED_STATES == cg.stateHead ) ) {
+		if ( /*cg_optimizePrediction.integer && */ ( cmdNum >= predictCmd 
+			|| ( stateIndex + 1 ) % NUM_SAVED_STATES == cg.stateHead ) ) {
 
-			Pmove( &cg_pmove );
+			Pmove( &cg_pmove, cg_entities[cg.snap->ps.clientNum].items, 
+        sources, destinations, sourcesAngles, destinationsAngles );
 
 			// add push trigger movement effects
 			CG_TouchTriggerPrediction();

@@ -12,6 +12,7 @@ USER INTERFACE MAIN
 #include "ui_local.h"
 
 
+#ifndef MISSIONPACK
 /*
 ================
 vmMain
@@ -20,7 +21,13 @@ This is the only way control passes into the module.
 This must be the very first function compiled into the .qvm file
 ================
 */
-DLLEXPORT intptr_t vmMain( int command, int arg0, int arg1 ) {
+static char	breadcrumb[MAX_STRING_CHARS];
+#ifdef BUILD_GAME_STATIC
+intptr_t UI_Call( int command, int arg0, int arg1, int arg2 )
+#else
+DLLEXPORT intptr_t vmMain( int command, int arg0, int arg1, int arg2 )
+#endif
+{
 	switch ( command ) {
 	case UI_GETAPIVERSION:
 		return UI_API_VERSION;
@@ -65,6 +72,7 @@ DLLEXPORT intptr_t vmMain( int command, int arg0, int arg1 ) {
 
 	return -1;
 }
+#endif
 
 
 /*
@@ -80,6 +88,7 @@ typedef struct {
 	int			cvarFlags;
 } cvarTable_t;
 
+#ifndef MISSIONPACK
 vmCvar_t	ui_ffa_fraglimit;
 vmCvar_t	ui_ffa_timelimit;
 
@@ -136,6 +145,9 @@ vmCvar_t	ui_server15;
 vmCvar_t	ui_server16;
 
 vmCvar_t	ui_cdkeychecked;
+vmCvar_t  ui_breadCrumb;
+vmCvar_t  ui_lazyLoad;
+vmCvar_t  ui_developer;
 
 // bk001129 - made static to avoid aliasing.
 static cvarTable_t		cvarTable[] = {
@@ -194,12 +206,18 @@ static cvarTable_t		cvarTable[] = {
 	{ &ui_server15, "server15", "", CVAR_ARCHIVE },
 	{ &ui_server16, "server16", "", CVAR_ARCHIVE },
 
-	{ &ui_cdkeychecked, "ui_cdkeychecked", "0", CVAR_ROM }
+	{ &ui_cdkeychecked, "ui_cdkeychecked", "0", CVAR_ROM },
+	{ &ui_breadCrumb, "ui_breadCrumb", "", CVAR_ROM },
+	{ &ui_lazyLoad, "ui_lazyLoad", "", 0 },
+	{ &ui_developer, "developer", "", 0 },
+
 };
 
 // bk001129 - made static to avoid aliasing
 static int cvarTableSize = sizeof(cvarTable) / sizeof(cvarTable[0]);
 
+static int breadcrumbModificationCount = -1;
+static int lazyloadModificationCount = -1;
 
 /*
 =================
@@ -213,6 +231,9 @@ void UI_RegisterCvars( void ) {
 	for ( i = 0, cv = cvarTable ; i < cvarTableSize ; i++, cv++ ) {
 		trap_Cvar_Register( cv->vmCvar, cv->cvarName, cv->defaultString, cv->cvarFlags );
 	}
+
+	breadcrumbModificationCount = ui_breadCrumb.modificationCount;
+	lazyloadModificationCount = ui_lazyLoad.modificationCount;
 }
 
 /*
@@ -228,6 +249,7 @@ void UI_UpdateCvars( void ) {
 		trap_Cvar_Update( cv->vmCvar );
 	}
 }
+#endif
 
 
 /*

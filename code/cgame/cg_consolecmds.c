@@ -5,7 +5,7 @@
 
 #include "cg_local.h"
 #ifdef MISSIONPACK
-#include "../ui/ui_shared.h"
+#include "cg_shared.h"
 extern menuDef_t *menuScoreboard;
 #endif
 
@@ -111,17 +111,44 @@ static void CG_ScoresUp_f( void ) {
 }
 
 
+#ifdef USE_RUNES
+static void CG_RunesDown_f( void ) {
+	cg.showRunes = qtrue;
+
+	//CG_SetScoreCatcher( cg.showScores );
+}
+
+
+static void CG_RunesUp_f( void ) {
+	if ( cgs.filterKeyUpEvent ) {
+		cgs.filterKeyUpEvent = qfalse;
+		return;
+	}
+
+	if ( cg.showRunes ) {
+		cg.showRunes = qfalse;
+		cg.runesFadeTime = cg.time;
+	}
+
+	//CG_SetScoreCatcher( cg.showScores );
+}
+#endif
+
+
+
 #ifdef MISSIONPACK
 extern menuDef_t *menuScoreboard;
-void Menu_Reset( void );			// FIXME: add to right include file
+void CG_Menu_Reset( void );			// FIXME: add to right include file
 
 static void CG_LoadHud_f( void) {
   char buff[1024];
 	const char *hudSet;
   memset(buff, 0, sizeof(buff));
 
-	String_Init();
-	Menu_Reset();
+#ifndef BUILD_GAME_STATIC
+	CG_String_Init();
+	CG_Menu_Reset();
+#endif
 	
 	trap_Cvar_VariableStringBuffer("cg_hudFiles", buff, sizeof(buff));
 	hudSet = buff;
@@ -136,18 +163,18 @@ static void CG_LoadHud_f( void) {
 
 static void CG_scrollScoresDown_f( void) {
 	if (menuScoreboard && cg.scoreBoardShowing) {
-		Menu_ScrollFeeder(menuScoreboard, FEEDER_SCOREBOARD, qtrue);
-		Menu_ScrollFeeder(menuScoreboard, FEEDER_REDTEAM_LIST, qtrue);
-		Menu_ScrollFeeder(menuScoreboard, FEEDER_BLUETEAM_LIST, qtrue);
+		CG_Menu_ScrollFeeder(menuScoreboard, FEEDER_SCOREBOARD, qtrue);
+		CG_Menu_ScrollFeeder(menuScoreboard, FEEDER_REDTEAM_LIST, qtrue);
+		CG_Menu_ScrollFeeder(menuScoreboard, FEEDER_BLUETEAM_LIST, qtrue);
 	}
 }
 
 
 static void CG_scrollScoresUp_f( void) {
 	if (menuScoreboard && cg.scoreBoardShowing) {
-		Menu_ScrollFeeder(menuScoreboard, FEEDER_SCOREBOARD, qfalse);
-		Menu_ScrollFeeder(menuScoreboard, FEEDER_REDTEAM_LIST, qfalse);
-		Menu_ScrollFeeder(menuScoreboard, FEEDER_BLUETEAM_LIST, qfalse);
+		CG_Menu_ScrollFeeder(menuScoreboard, FEEDER_SCOREBOARD, qfalse);
+		CG_Menu_ScrollFeeder(menuScoreboard, FEEDER_REDTEAM_LIST, qfalse);
+		CG_Menu_ScrollFeeder(menuScoreboard, FEEDER_BLUETEAM_LIST, qfalse);
 	}
 }
 
@@ -451,17 +478,37 @@ static void CG_StartOrbit_f( void ) {
 }
 
 /*
-static void CG_Camera_f( void ) {
-	char name[1024];
-	trap_Argv( 1, name, sizeof(name));
-	if (trap_loadCamera(name)) {
+==============
+CG_StartCamera
+==============
+*/
+void CG_StartCamera( const char *name, qboolean startBlack ) {
+	int cam;
+	if ((cam = trap_loadCamera(name)) >= 0)
+	{
 		cg.cameraMode = qtrue;
-		trap_startCamera(cg.time);
+		cg.currentCamera = cam;
+		if(startBlack)
+		{
+			CG_Fade(255, 0, 0);	// go black
+			CG_Fade(0, cg.time, 1500);
+		}
+		// 
+		// letterbox look
+		//
+		black_bars = 1;
+		trap_startCamera(cg.currentCamera, cg.time);	// camera on in client
 	} else {
-		CG_Printf ("Unable to load camera %s\n",name);
+		CG_Printf ("Unable to load camera \"%s\"\n",name);
 	}
 }
-*/
+
+
+static void CG_Camera_f( void ) {
+	char name[MAX_QPATH];
+	trap_Argv( 1, name, sizeof(name));
+	CG_StartCamera(name, qfalse );
+}
 
 
 typedef struct {
@@ -479,6 +526,10 @@ static consoleCommand_t	commands[] = {
 	{ "viewpos", CG_Viewpos_f },
 	{ "+scores", CG_ScoresDown_f },
 	{ "-scores", CG_ScoresUp_f },
+#ifdef USE_RUNES
+  { "+runes", CG_RunesDown_f },
+  { "-runes", CG_RunesUp_f },
+#endif
 	{ "+zoom", CG_ZoomDown_f },
 	{ "-zoom", CG_ZoomUp_f },
 	{ "sizeup", CG_SizeUp_f },
@@ -518,8 +569,9 @@ static consoleCommand_t	commands[] = {
 	{ "scoresUp", CG_scrollScoresUp_f },
 #endif
 	{ "startOrbit", CG_StartOrbit_f },
-	//{ "camera", CG_Camera_f },
-	{ "loaddeferred", CG_LoadDeferredPlayers }	
+	{ "camera", CG_Camera_f },
+	{ "loaddeferred", CG_LoadDeferredPlayers },
+	{ "generateTracemap", CG_GenerateTracemap },
 };
 
 
@@ -596,4 +648,32 @@ void CG_InitConsoleCommands( void ) {
 	trap_AddCommand ("stats");
 	trap_AddCommand ("teamtask");
 	trap_AddCommand ("loaddefered");	// spelled wrong, but not changing for demo
+#ifdef USE_WEAPON_DROP
+  trap_AddCommand ("drop");
+#endif
+#ifdef USE_FLAG_DROP
+  trap_AddCommand ("fdrop");
+#endif
+#ifdef USE_ITEM_DROP
+  trap_AddCommand ("itdrop");
+#endif
+#ifdef USE_POWERUP_DROP
+  trap_AddCommand ("pwdrop");
+#endif
+#ifdef USE_AMMO_DROP
+  trap_AddCommand ("amdrop");
+#endif
+#ifdef USE_BOUNCE_CMD
+  trap_AddCommand ("rbounce");
+#endif
+#ifdef USE_CLOAK_CMD
+  trap_AddCommand ("cloak");
+#endif
+#ifdef USE_GRAVITY_BOOTS
+  trap_AddCommand ("boots");
+#endif
+#ifdef USE_LASER_SIGHT
+  trap_AddCommand ("laser");
+  trap_AddCommand ("flashlight");
+#endif
 }

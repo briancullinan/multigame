@@ -9,11 +9,11 @@
 //==================================================================
 
 // the "gameversion" client command will print this plus compile date
-#define	GAMEVERSION	"baseq3"
+#define	GAMEVERSION	"multigame"
 
 #define BODY_QUEUE_SIZE		8
 
-#define INFINITE			1000000
+#define INFINITE			0x7FFF
 
 #define	FRAMETIME			100					// msec
 #define	CARNAGE_REWARD_TIME	3000
@@ -26,11 +26,23 @@
 #define	FL_GODMODE				0x00000010
 #define	FL_NOTARGET				0x00000020
 #define	FL_TEAMSLAVE			0x00000400	// not the first on the team
-#define FL_NO_KNOCKBACK			0x00000800
-#define FL_DROPPED_ITEM			0x00001000
+#define FL_NO_KNOCKBACK		0x00000800
+#define FL_DROPPED_ITEM		0x00001000
 #define FL_NO_BOTS				0x00002000	// spawn point not for bot use
 #define FL_NO_HUMANS			0x00004000	// spawn point just for bots
-#define FL_FORCE_GESTURE		0x00008000	// force gesture on client
+#define FL_FORCE_GESTURE	0x00008000	// force gesture on client
+#ifdef USE_BOUNCE_RPG
+#define FL_ROCKETBOUNCE		0x00010000
+#endif
+#ifdef USE_CLOAK_CMD
+#define FL_CLOAK      		0x00020000
+#endif
+#ifdef USE_WEAPON_DROP
+#define FL_THROWN_ITEM		0x00040000  // XRAY FMJ weapon throwing
+#endif
+#ifdef USE_GRAVITY_BOOTS
+#define FL_BOOTS          0x00080000  // Anti Gravity Boots
+#endif
 
 // movers are things like doors, plats, buttons, etc
 typedef enum {
@@ -38,6 +50,14 @@ typedef enum {
 	MOVER_POS2,
 	MOVER_1TO2,
 	MOVER_2TO1
+
+#ifdef USE_ROTATING_DOOR
+  // VALKYRIE: angle movements
+  ,ROTATOR_POS1,
+  ROTATOR_POS2,
+  ROTATOR_1TO2,
+  ROTATOR_2TO1
+#endif
 } moverState_t;
 
 #define SP_PODIUM_MODEL		"models/mapobjects/podium/podium4.md3"
@@ -131,6 +151,8 @@ struct gentity_s {
 	int			splashRadius;
 	int			methodOfDeath;
 	int			splashMethodOfDeath;
+  int     splashTime; // for calculating if the last attacker caused ring out
+  gentity_t *splashAttacker;
 
 	int			count;
 
@@ -156,10 +178,26 @@ struct gentity_s {
 
 	gitem_t		*item;			// for bonus items
 
+
+#ifdef USE_SINGLEPLAYER // entity
+	int			stop_event;
+#endif
+
 	// team for spawn spot
 	team_t		fteam;
 
 	tag_t		tag;
+
+  int     items[MAX_ITEMS]; // times of items attached to the entities
+#ifdef USE_RUNES
+  int     rune;
+#endif
+#ifdef USE_ROTATING_DOOR
+  float		distance;		// VALKYRIE: for rotating door
+#endif
+#ifdef USE_MULTIWORLD
+	int     world;
+#endif
 };
 
 
@@ -240,6 +278,10 @@ typedef struct {
 	int			teamVoted;
 
 	qboolean	inGame;
+#ifdef USE_ADVANCED_CLASS
+  pclass_t	playerclass;	   // The players current class
+  pclass_t	newplayerclass;	   // The class the player will become when it respawns
+#endif
 } clientPersistant_t;
 
 // unlagged
@@ -291,6 +333,9 @@ struct gclient_s {
 	int			lastkilled_client;	// last client that this client killed
 	int			lasthurt_client;	// last client that damaged this client
 	int			lasthurt_mod;		// type of damage the client did
+#ifdef USE_LOCAL_DMG
+  int		  lasthurt_location;	// Where the client was hit.
+#endif
 
 	// timers
 	int			respawnTime;		// can respawn when time > this, force after g_forcerespwan
@@ -302,8 +347,14 @@ struct gclient_s {
 
 	int			lastKillTime;		// for multiple kill rewards
 
+#ifdef USE_GRAPPLE
 	qboolean	fireHeld;			// used for hook
 	gentity_t	*hook;				// grapple hook if out
+#endif
+
+#ifdef USE_LASER_SIGHT
+  gentity_t	*lasersight;			// lasersight OR flashlight if in use
+#endif
 
 	int			switchTeamTime;		// time the player switched teams
 
@@ -313,9 +364,15 @@ struct gclient_s {
 
 #ifdef MISSIONPACK
 	gentity_t	*persistantPowerup;
-	int			portalID;
 	int			ammoTimes[WP_NUM_WEAPONS];
 	int			invulnerabilityTime;
+#endif
+#ifdef USE_PORTALS
+  gentity_t *portalDestination;
+  gentity_t *portalSource;
+  int       lastPortal;
+  gentity_t *lastPortalEnt;
+	int			portalID;
 #endif
 
 	char		*areabits;
@@ -334,6 +391,13 @@ struct gclient_s {
 		int		enemy;
 		int		amount;
 	} damage;
+
+#if defined(USE_GAME_FREEZETAG) || defined(USE_REFEREE_CMDS)
+  vec3_t		frozen_angles;
+#endif
+  int       pwCounter;
+  int       pwIndex;
+  gentity_t *pwEnt;
 };
 
 
@@ -426,7 +490,7 @@ typedef struct {
 	gentity_t	*locationHead;			// head of the location list
 	int			bodyQueIndex;			// dead bodies
 	gentity_t	*bodyQue[BODY_QUEUE_SIZE];
-#ifdef MISSIONPACK
+#ifdef USE_PORTALS
 	int			portalSequence;
 #endif
 
@@ -477,7 +541,11 @@ int SpawnTime( gentity_t *ent, qboolean firstSpawn );
 void UseHoldableItem( gentity_t *ent );
 void PrecacheItem (gitem_t *it);
 gentity_t *Drop_Item( gentity_t *ent, gitem_t *item, float angle );
+#ifdef USE_WEAPON_DROP
+gentity_t *LaunchItem( gitem_t *item, vec3_t origin, vec3_t velocity, int xr_flags );
+#else
 gentity_t *LaunchItem( gitem_t *item, vec3_t origin, vec3_t velocity );
+#endif
 void SetRespawn (gentity_t *ent, float delay);
 void G_SpawnItem (gentity_t *ent, gitem_t *item);
 void FinishSpawningItem( gentity_t *ent );
@@ -554,6 +622,9 @@ gentity_t *fire_blaster (gentity_t *self, vec3_t start, vec3_t aimdir);
 gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t aimdir);
 gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t aimdir);
 gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir);
+#ifdef USE_PORTALS
+gentity_t *fire_portal (gentity_t *self, vec3_t start, vec3_t dir, qboolean altFire);
+#endif
 gentity_t *fire_bfg (gentity_t *self, vec3_t start, vec3_t dir);
 gentity_t *fire_grapple (gentity_t *self, vec3_t start, vec3_t dir);
 #ifdef MISSIONPACK
@@ -578,9 +649,9 @@ void trigger_teleporter_touch (gentity_t *self, gentity_t *other, trace_t *trace
 // g_misc.c
 //
 void TeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles );
-#ifdef MISSIONPACK
-void DropPortalSource( gentity_t *ent );
-void DropPortalDestination( gentity_t *ent );
+#ifdef USE_PORTALS
+void DropPortalSource( gentity_t *ent, qboolean isWall );
+void DropPortalDestination( gentity_t *ent, qboolean isWall );
 #endif
 
 
@@ -610,6 +681,9 @@ void BeginIntermission (void);
 void InitBodyQue (void);
 void ClientSpawn( gentity_t *ent );
 void player_die (gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod);
+#ifdef USE_DAMAGE_PLUMS
+void player_pain (gentity_t *self, gentity_t *attacker, int damage);
+#endif
 void AddScore( gentity_t *ent, vec3_t origin, int score );
 void CalculateRanks( void );
 qboolean SpotWouldTelefrag( gentity_t *spot );
@@ -624,7 +698,11 @@ qboolean G_FilterPacket (char *from);
 //
 // g_weapon.c
 //
+#ifdef USE_ALT_FIRE
+void FireWeapon( gentity_t *ent, qboolean altFire );
+#else
 void FireWeapon( gentity_t *ent );
+#endif
 #ifdef MISSIONPACK
 void G_StartKamikaze( gentity_t *ent );
 #endif
@@ -757,12 +835,12 @@ extern	gentity_t		g_entities[MAX_GENTITIES];
 
 extern	vmCvar_t	g_gametype;
 extern	vmCvar_t	g_mapname;
-extern	vmCvar_t	sv_fps;
+extern	vmCvar_t	g_fps;
 extern	vmCvar_t	g_dedicated;
 extern	vmCvar_t	g_cheats;
 //extern vmCvar_t	g_maxclients;			// allow this many total, including spectators
 extern	vmCvar_t	g_maxGameClients;		// allow this many active
-//extern	vmCvar_t	g_restarted;
+extern	vmCvar_t	g_restarted;
 
 extern	vmCvar_t	g_dmflags;
 extern	vmCvar_t	g_fraglimit;
@@ -808,6 +886,330 @@ extern	vmCvar_t	g_enableDust;
 extern	vmCvar_t	g_enableBreath;
 extern	vmCvar_t	g_singlePlayer;
 extern	vmCvar_t	g_proxMineTimeout;
+#ifdef USE_PHYSICS_VARS
+#ifdef MISSIONPACK
+extern	vmCvar_t	g_scoutFactor;
+#endif
+extern	vmCvar_t	g_hasteFactor;
+extern	vmCvar_t	g_jumpVelocity;
+#endif
+
+#ifdef USE_WEAPON_VARS
+extern vmCvar_t  wp_gauntDamage;
+extern vmCvar_t  wp_lightDamage;
+extern vmCvar_t  wp_shotgunDamage;
+
+extern vmCvar_t  wp_machineDamage;
+extern vmCvar_t  wp_machineDamageTeam;
+
+extern vmCvar_t  wp_grenadeDamage;
+extern vmCvar_t  wp_grenadeSplash;
+extern vmCvar_t  wp_grenadeRadius;
+extern vmCvar_t  wp_grenadeSpeed;
+extern vmCvar_t  wp_grenadeTime;
+
+extern vmCvar_t  wp_rocketDamage;
+extern vmCvar_t  wp_rocketSplash;
+extern vmCvar_t  wp_rocketRadius;
+extern vmCvar_t  wp_rocketSpeed;
+extern vmCvar_t  wp_rocketTime;
+
+extern vmCvar_t  wp_plasmaDamage;
+extern vmCvar_t  wp_plasmaSplash;
+extern vmCvar_t  wp_plasmaRadius;
+extern vmCvar_t  wp_plasmaSpeed;
+extern vmCvar_t  wp_plasmaTime;
+
+extern vmCvar_t  wp_railDamage;
+
+extern vmCvar_t  wp_bfgDamage;
+extern vmCvar_t  wp_bfgSplash;
+extern vmCvar_t  wp_bfgRadius;
+extern vmCvar_t  wp_bfgSpeed;
+extern vmCvar_t  wp_bfgTime;
+
+#ifdef USE_GRAPPLE
+extern vmCvar_t  wp_grappleEnable;
+extern vmCvar_t  wp_grapplePull;
+extern vmCvar_t  wp_grappleDamage;
+extern vmCvar_t  wp_grappleSpeed;
+extern vmCvar_t  wp_grappleTime;
+#endif
+#ifdef MISSIONPACK
+extern vmCvar_t  wp_nailDamage;
+extern vmCvar_t  wp_nailSpeed;
+extern vmCvar_t  wp_nailTime;
+
+extern vmCvar_t  wp_proxDamage;
+extern vmCvar_t  wp_proxSplash;
+extern vmCvar_t  wp_proxRadius;
+extern vmCvar_t  wp_proxSpeed;
+extern vmCvar_t  wp_proxTime;
+
+extern vmCvar_t  wp_chainDamage;
+#endif
+#ifdef USE_FLAME_THROWER
+extern vmCvar_t  wp_flameDamage;
+extern vmCvar_t  wp_flameSplash;
+extern vmCvar_t  wp_flameRadius;
+#endif
+#endif
+
+#ifdef USE_PORTALS
+extern vmCvar_t  wp_portalEnable;
+#ifdef USE_ALT_FIRE
+extern vmCvar_t  g_altPortal;
+#endif
+#endif
+
+#if defined(USE_ALT_FIRE) && defined(USE_GRAPPLE)
+extern vmCvar_t  g_altGrapple;
+#endif
+
+#ifdef USE_TEAM_VARS
+extern	vmCvar_t	g_flagReturn;
+#endif
+#if defined(USE_GAME_FREEZETAG) || defined(USE_REFEREE_CMDS)
+extern  vmCvar_t  g_thawTime;
+#endif
+#ifdef USE_INVULN_RAILS
+extern  vmCvar_t  g_railThruWalls;
+#endif
+#ifdef USE_HOMING_MISSILE
+extern  vmCvar_t  wp_rocketHoming;
+#endif
+#ifdef USE_BOUNCE_RAIL
+extern  vmCvar_t  wp_railBounce;
+#endif
+#ifdef USE_BOUNCE_RPG
+extern  vmCvar_t  wp_bfgBounce;
+extern  vmCvar_t  wp_rocketBounce;
+extern  vmCvar_t  wp_plasmaBounce;
+#endif
+#ifdef USE_VULN_RPG
+extern  vmCvar_t  wp_rocketVuln;
+#endif
+#ifdef USE_ACCEL_RPG
+extern  vmCvar_t  wp_rocketAccel;
+#endif
+#ifdef USE_CLOAK_CMD
+extern  vmCvar_t  g_enableCloak;
+#endif
+#ifdef USE_CLUSTER_GRENADES
+extern  vmCvar_t  g_clusterGrenades;
+#endif
+#ifdef USE_VORTEX_GRENADES
+extern  vmCvar_t  g_vortexGrenades;
+#endif
+#ifdef USE_WEAPON_DROP
+extern  vmCvar_t  g_dropWeapon;
+#endif
+#ifdef USE_LOCAL_DMG
+extern  vmCvar_t  g_locDamage;
+#endif
+#ifdef USE_GRAVITY_BOOTS
+extern  vmCvar_t  g_enableBoots;
+#endif
+#ifdef USE_LASER_SIGHT
+extern  vmCvar_t  g_enableLaser;
+#endif
+#ifdef USE_TRINITY
+extern  vmCvar_t  g_unholyTrinity;
+#endif
+#ifdef USE_INSTAGIB
+extern  vmCvar_t  g_instagib;
+#endif
+#ifdef USE_HOTRPG
+extern  vmCvar_t  g_hotRockets;
+#endif
+#ifdef USE_HOTBFG
+extern  vmCvar_t  g_hotBFG;
+#endif
+
+#ifdef BUILD_GAME_STATIC
+#define trap_Print trapg_Print
+#define trap_Error trapg_Error
+#define trap_Milliseconds trapg_Milliseconds
+#define trap_RealTime trapg_RealTime
+#define trap_Argc trapg_Argc
+#define trap_Argv trapg_Argv
+#define trap_Args trapg_Args
+#define trap_FS_FOpenFile trapg_FS_FOpenFile
+#define trap_FS_Read trapg_FS_Read
+#define trap_FS_Write trapg_FS_Write
+#define trap_FS_FCloseFile trapg_FS_FCloseFile
+#define trap_FS_GetFileList trapg_FS_GetFileList
+#define trap_FS_Seek trapg_FS_Seek
+#define trap_SendConsoleCommand trapg_SendConsoleCommand
+#define trap_Cvar_Register trapg_Cvar_Register
+#define trap_Cvar_Update trapg_Cvar_Update
+#define trap_Cvar_Set trapg_Cvar_Set
+#define trap_Cvar_VariableIntegerValue trapg_Cvar_VariableIntegerValue
+#define trap_Cvar_VariableValue trapg_Cvar_VariableValue
+#define trap_Cvar_VariableStringBuffer trapg_Cvar_VariableStringBuffer
+#define trap_LocateGameData trapg_LocateGameData
+#define trap_DropClient trapg_DropClient
+#define trap_SendServerCommand trapg_SendServerCommand
+#define trap_SetConfigstring trapg_SetConfigstring
+#define trap_GetConfigstring trapg_GetConfigstring
+#define trap_GetUserinfo trapg_GetUserinfo
+#define trap_SetUserinfo trapg_SetUserinfo
+#define trap_GetServerinfo trapg_GetServerinfo
+#define trap_SetBrushModel trapg_SetBrushModel
+#define trap_Trace trapg_Trace
+#define trap_TraceCapsule trapg_TraceCapsule
+#define trap_PointContents trapg_PointContents
+#define trap_InPVS trapg_InPVS
+#define trap_InPVSIgnorePortals trapg_InPVSIgnorePortals
+#define trap_AdjustAreaPortalState trapg_AdjustAreaPortalState
+#define trap_AreasConnected trapg_AreasConnected
+#define trap_LinkEntity trapg_LinkEntity
+#define trap_UnlinkEntity trapg_UnlinkEntity
+#define trap_EntitiesInBox trapg_EntitiesInBox
+#define trap_EntityContact trapg_EntityContact
+#define trap_BotAllocateClient trapg_BotAllocateClient
+#define trap_BotFreeClient trapg_BotFreeClient
+#define trap_GetUsercmd trapg_GetUsercmd
+#define trap_GetEntityToken trapg_GetEntityToken
+#define trap_DebugPolygonCreate trapg_DebugPolygonCreate
+#define trap_DebugPolygonDelete trapg_DebugPolygonDelete
+#define trap_BotLibSetup trapg_BotLibSetup
+#define trap_BotLibShutdown trapg_BotLibShutdown
+#define trap_BotLibVarSet trapg_BotLibVarSet
+#define trap_BotLibVarGet trapg_BotLibVarGet
+#define trap_BotLibDefine trapg_BotLibDefine
+#define trap_BotLibStartFrame trapg_BotLibStartFrame
+#define trap_BotLibLoadMap trapg_BotLibLoadMap
+#define trap_BotLibUpdateEntity trapg_BotLibUpdateEntity
+#define trap_BotLibTest trapg_BotLibTest
+#define trap_BotGetSnapshotEntity trapg_BotGetSnapshotEntity
+#define trap_BotGetServerCommand trapg_BotGetServerCommand
+#define trap_BotUserCommand trapg_BotUserCommand
+#define trap_AAS_BBoxAreas trapg_AAS_BBoxAreas
+#define trap_AAS_AreaInfo trapg_AAS_AreaInfo
+#define trap_AAS_EntityInfo trapg_AAS_EntityInfo
+#define trap_AAS_Initialized trapg_AAS_Initialized
+#define trap_AAS_PresenceTypeBoundingBox trapg_AAS_PresenceTypeBoundingBox
+#define trap_AAS_Time trapg_AAS_Time
+#define trap_AAS_PointAreaNum trapg_AAS_PointAreaNum
+#define trap_AAS_PointReachabilityAreaIndex trapg_AAS_PointReachabilityAreaIndex
+#define trap_AAS_TraceAreas trapg_AAS_TraceAreas
+#define trap_AAS_PointContents trapg_AAS_PointContents
+#define trap_AAS_NextBSPEntity trapg_AAS_NextBSPEntity
+#define trap_AAS_ValueForBSPEpairKey trapg_AAS_ValueForBSPEpairKey
+#define trap_AAS_VectorForBSPEpairKey trapg_AAS_VectorForBSPEpairKey
+#define trap_AAS_FloatForBSPEpairKey trapg_AAS_FloatForBSPEpairKey
+#define trap_AAS_IntForBSPEpairKey trapg_AAS_IntForBSPEpairKey
+#define trap_AAS_AreaReachability trapg_AAS_AreaReachability
+#define trap_AAS_AreaTravelTimeToGoalArea trapg_AAS_AreaTravelTimeToGoalArea
+#define trap_AAS_EnableRoutingArea trapg_AAS_EnableRoutingArea
+#define trap_AAS_PredictRoute trapg_AAS_PredictRoute
+#define trap_AAS_AlternativeRouteGoals trapg_AAS_AlternativeRouteGoals
+#define trap_AAS_Swimming trapg_AAS_Swimming
+#define trap_AAS_PredictClientMovement trapg_AAS_PredictClientMovement
+#define trap_EA_Say trapg_EA_Say
+#define trap_EA_SayTeam trapg_EA_SayTeam
+#define trap_EA_Command trapg_EA_Command
+#define trap_EA_Action trapg_EA_Action
+#define trap_EA_Gesture trapg_EA_Gesture
+#define trap_EA_Talk trapg_EA_Talk
+#define trap_EA_Attack trapg_EA_Attack
+#define trap_EA_Use trapg_EA_Use
+#define trap_EA_Respawn trapg_EA_Respawn
+#define trap_EA_Crouch trapg_EA_Crouch
+#define trap_EA_MoveUp trapg_EA_MoveUp
+#define trap_EA_MoveDown trapg_EA_MoveDown
+#define trap_EA_MoveForward trapg_EA_MoveForward
+#define trap_EA_MoveBack trapg_EA_MoveBack
+#define trap_EA_MoveLeft trapg_EA_MoveLeft
+#define trap_EA_MoveRight trapg_EA_MoveRight
+#define trap_EA_SelectWeapon trapg_EA_SelectWeapon
+#define trap_EA_Jump trapg_EA_Jump
+#define trap_EA_DelayedJump trapg_EA_DelayedJump
+#define trap_EA_Move trapg_EA_Move
+#define trap_EA_View trapg_EA_View
+#define trap_EA_EndRegular trapg_EA_EndRegular
+#define trap_EA_GetInput trapg_EA_GetInput
+#define trap_EA_ResetInput trapg_EA_ResetInput
+#define trap_BotLoadCharacter trapg_BotLoadCharacter
+#define trap_BotFreeCharacter trapg_BotFreeCharacter
+#define trap_Characteristic_Float trapg_Characteristic_Float
+#define trap_Characteristic_BFloat trapg_Characteristic_BFloat
+#define trap_Characteristic_Integer trapg_Characteristic_Integer
+#define trap_Characteristic_BInteger trapg_Characteristic_BInteger
+#define trap_Characteristic_String trapg_Characteristic_String
+#define trap_BotAllocChatState trapg_BotAllocChatState
+#define trap_BotFreeChatState trapg_BotFreeChatState
+#define trap_BotQueueConsoleMessage trapg_BotQueueConsoleMessage
+#define trap_BotRemoveConsoleMessage trapg_BotRemoveConsoleMessage
+#define trap_BotNextConsoleMessage trapg_BotNextConsoleMessage
+#define trap_BotNumConsoleMessages trapg_BotNumConsoleMessages
+#define trap_BotInitialChat trapg_BotInitialChat
+#define trap_BotNumInitialChats trapg_BotNumInitialChats
+#define trap_BotReplyChat trapg_BotReplyChat
+#define trap_BotChatLength trapg_BotChatLength
+#define trap_BotEnterChat trapg_BotEnterChat
+#define trap_BotGetChatMessage trapg_BotGetChatMessage
+#define trap_StringContains trapg_StringContains
+#define trap_BotFindMatch trapg_BotFindMatch
+#define trap_BotMatchVariable trapg_BotMatchVariable
+#define trap_UnifyWhiteSpaces trapg_UnifyWhiteSpaces
+#define trap_BotReplaceSynonyms trapg_BotReplaceSynonyms
+#define trap_BotLoadChatFile trapg_BotLoadChatFile
+#define trap_BotSetChatGender trapg_BotSetChatGender
+#define trap_BotSetChatName trapg_BotSetChatName
+#define trap_BotResetGoalState trapg_BotResetGoalState
+#define trap_BotRemoveFromAvoidGoals trapg_BotRemoveFromAvoidGoals
+#define trap_BotResetAvoidGoals trapg_BotResetAvoidGoals
+#define trap_BotPushGoal trapg_BotPushGoal
+#define trap_BotPopGoal trapg_BotPopGoal
+#define trap_BotEmptyGoalStack trapg_BotEmptyGoalStack
+#define trap_BotDumpAvoidGoals trapg_BotDumpAvoidGoals
+#define trap_BotDumpGoalStack trapg_BotDumpGoalStack
+#define trap_BotGoalName trapg_BotGoalName
+#define trap_BotGetTopGoal trapg_BotGetTopGoal
+#define trap_BotGetSecondGoal trapg_BotGetSecondGoal
+#define trap_BotChooseLTGItem trapg_BotChooseLTGItem
+#define trap_BotChooseNBGItem trapg_BotChooseNBGItem
+#define trap_BotTouchingGoal trapg_BotTouchingGoal
+#define trap_BotItemGoalInVisButNotVisible trapg_BotItemGoalInVisButNotVisible
+#define trap_BotGetNextCampSpotGoal trapg_BotGetNextCampSpotGoal
+#define trap_BotGetMapLocationGoal trapg_BotGetMapLocationGoal
+#define trap_BotGetLevelItemGoal trapg_BotGetLevelItemGoal
+#define trap_BotAvoidGoalTime trapg_BotAvoidGoalTime
+#define trap_BotSetAvoidGoalTime trapg_BotSetAvoidGoalTime
+#define trap_BotInitLevelItems trapg_BotInitLevelItems
+#define trap_BotUpdateEntityItems trapg_BotUpdateEntityItems
+#define trap_BotLoadItemWeights trapg_BotLoadItemWeights
+#define trap_BotFreeItemWeights trapg_BotFreeItemWeights
+#define trap_BotInterbreedGoalFuzzyLogic trapg_BotInterbreedGoalFuzzyLogic
+#define trap_BotSaveGoalFuzzyLogic trapg_BotSaveGoalFuzzyLogic
+#define trap_BotMutateGoalFuzzyLogic trapg_BotMutateGoalFuzzyLogic
+#define trap_BotAllocGoalState trapg_BotAllocGoalState
+#define trap_BotFreeGoalState trapg_BotFreeGoalState
+#define trap_BotResetMoveState trapg_BotResetMoveState
+#define trap_BotMoveToGoal trapg_BotMoveToGoal
+#define trap_BotMoveInDirection trapg_BotMoveInDirection
+#define trap_BotResetAvoidReach trapg_BotResetAvoidReach
+#define trap_BotResetLastAvoidReach trapg_BotResetLastAvoidReach
+#define trap_BotReachabilityArea trapg_BotReachabilityArea
+#define trap_BotMovementViewTarget trapg_BotMovementViewTarget
+#define trap_BotPredictVisiblePosition trapg_BotPredictVisiblePosition
+#define trap_BotAllocMoveState trapg_BotAllocMoveState
+#define trap_BotFreeMoveState trapg_BotFreeMoveState
+#define trap_BotInitMoveState trapg_BotInitMoveState
+#define trap_BotAddAvoidSpot trapg_BotAddAvoidSpot
+#define trap_BotChooseBestFightWeapon trapg_BotChooseBestFightWeapon
+#define trap_BotGetWeaponInfo trapg_BotGetWeaponInfo
+#define trap_BotLoadWeaponWeights trapg_BotLoadWeaponWeights
+#define trap_BotAllocWeaponState trapg_BotAllocWeaponState
+#define trap_BotFreeWeaponState trapg_BotFreeWeaponState
+#define trap_BotResetWeaponState trapg_BotResetWeaponState
+#define trap_GeneticParentsAndChildSelection trapg_GeneticParentsAndChildSelection
+#define trap_SnapVector trapg_SnapVector
+#define trap_GetValue trapg_GetValue
+#define dll_com_trapGetValue g_trapGetValue
+#endif
 
 void	trap_Print( const char *text );
 void	trap_Error( const char *text );
@@ -1026,4 +1428,3 @@ extern int dll_com_trapGetValue;
 #endif
 
 extern	int svf_self_portal2;
-

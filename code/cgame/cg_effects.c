@@ -6,6 +6,21 @@
 #include "cg_local.h"
 
 
+
+#ifdef USE_SINGLEPLAYER // entity
+/*
+===============
+CG_BlackBars
+===============
+*/
+void CG_BlackBars(void) {
+	float color[4] = {0,0,0,1};
+	CG_FillRect(0,0,640,50, color);
+	CG_FillRect(0,430,640,50, color);
+}
+#endif
+
+
 /*
 ==================
 CG_BubbleTrail
@@ -194,6 +209,33 @@ void CG_SpawnEffect( const vec3_t origin ) {
 }
 
 
+#ifdef USE_LV_DISCHARGE
+/*
+====================
+CG_Lightning_Discharge by The SARACEN
+====================
+*/
+void CG_Lightning_Discharge (vec3_t origin, int msec)
+{
+	localEntity_t		*le;
+
+	if (msec <= 0) CG_Error ("CG_Lightning_Discharge: msec = %i", msec);
+
+	le = CG_SmokePuff (	origin,			// where
+				vec3_origin,			// where to
+				((48 + (msec * 10)) / 16),	// radius
+				1, 1, 1, 1,			// RGBA color shift
+				300 + msec,			// duration
+				cg.time,			// start when?
+				0,					// fade in time
+				0,				// flags (?)
+				trap_R_RegisterShader ("models/weaphits/electric.tga"));
+
+	le->leType = LE_SCALE_FADE;
+}
+#endif
+
+
 #ifdef MISSIONPACK
 /*
 ===============
@@ -246,9 +288,9 @@ void CG_KamikazeEffect( vec3_t org ) {
 	re->reType = RT_MODEL;
 
 	if ( intShaderTime )
-		re->intShaderTime = cg.time;
+		re->u.intShaderTime = cg.time;
 	else
-		re->shaderTime = cg.time / 1000.0f;
+		re->u.shaderTime = cg.time / 1000.0f;
 
 	re->hModel = cgs.media.kamikazeEffectModel;
 
@@ -380,6 +422,58 @@ void CG_InvulnerabilityJuiced( vec3_t org ) {
 	AnglesToAxis( angles, re->axis );
 
 	trap_S_StartSound (org, ENTITYNUM_NONE, CHAN_BODY, cgs.media.invulnerabilityJuicedSound );
+}
+#endif
+
+
+
+#ifdef USE_DAMAGE_PLUMS
+/*
+==================
+CG_DamagePlum
+==================
+*/
+void CG_DamagePlum( int client, const vec3_t origin, int damage ) {
+	localEntity_t	*le;
+	refEntity_t		*re;
+	vec3_t			angles;
+	static vec3_t lastPos;
+
+	// only visualize for the client that scored
+	if (client == cg.predictedPlayerState.clientNum || cg_damagePlum.integer == 0) {
+		return;
+	}
+
+  // TODO: if they are close together in time and distance update the value
+  //   so they don't overlap
+
+	le = CG_AllocLocalEntity();
+	le->leFlags = 0;
+	le->leType = LE_DAMAGEPLUM;
+	le->startTime = cg.time;
+	le->endTime = cg.time + 1000;
+	le->lifeRate = 1.0 / ( le->endTime - le->startTime );
+
+	
+	le->color[0] = le->color[1] = le->color[2] = le->color[3] = 1.0;
+	le->radius = damage;
+	
+	VectorCopy( origin, le->pos.trBase );
+	if ( origin[2] >= lastPos[2] - 20 && origin[2] <= lastPos[2] + 20 ) {
+		le->pos.trBase[2] -= 20;
+	}
+
+	//CG_Printf( "Plum origin %i %i %i -- %i\n", (int)org[0], (int)org[1], (int)org[2], (int)Distance(org, lastPos));
+	VectorCopy(origin, lastPos);
+
+	re = &le->refEntity;
+
+	re->reType = RT_SPRITE;
+  re->renderfx = RF_DEPTHHACK | RF_FIRST_PERSON;
+	re->radius = 16;
+
+	VectorClear(angles);
+	AnglesToAxis( angles, re->axis );
 }
 #endif
 
@@ -571,6 +665,8 @@ Generated a bunch of gibs launching out from the bodies location
 void CG_GibPlayer( const vec3_t playerOrigin ) {
 	vec3_t	origin, velocity;
 
+Com_Printf("gibs!\n");
+
 	if ( !cg_blood.integer ) {
 		return;
 	}
@@ -644,6 +740,29 @@ void CG_GibPlayer( const vec3_t playerOrigin ) {
 	velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
 	CG_LaunchGib( origin, velocity, cgs.media.gibLeg );
 }
+
+
+#ifdef USE_HEADSHOTS
+void CG_GibPlayerHeadshot( vec3_t playerOrigin ) {
+	vec3_t	origin, velocity;
+
+	if ( !cg_blood.integer ) {
+		return;
+	}
+
+	VectorCopy( playerOrigin, origin );
+	origin[2]+=25;
+	velocity[0] = crandom()*GIB_VELOCITY;
+	velocity[1] = crandom()*GIB_VELOCITY;
+	velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
+	if ( rand() & 1 ) {
+		CG_LaunchGib( origin, velocity, cgs.media.gibSkull );
+	} else {
+		CG_LaunchGib( origin, velocity, cgs.media.gibBrain );
+	}
+}
+#endif
+
 
 /*
 ==================
@@ -722,4 +841,3 @@ void CG_BigExplode( vec3_t playerOrigin ) {
 	velocity[2] = EXP_JUMP + crandom()*EXP_VELOCITY;
 	CG_LaunchExplode( origin, velocity, cgs.media.smoke2 );
 }
-

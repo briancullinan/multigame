@@ -8,11 +8,15 @@
 #error "Do not use in VM build"
 #endif
 
+#ifndef BUILD_GAME_STATIC
 static dllSyscall_t syscall = (dllSyscall_t)-1;
 
 DLLEXPORT void dllEntry( dllSyscall_t syscallptr ) {
 	syscall = syscallptr;
 }
+#else
+#define syscall UI_DllSyscall
+#endif
 
 int PASSFLOAT( float x ) {
 	float	floatTemp;
@@ -246,11 +250,11 @@ int trap_LAN_ServerStatus( const char *serverAddress, char *serverStatus, int ma
 	return syscall( UI_LAN_SERVERSTATUS, serverAddress, serverStatus, maxLen );
 }
 
-void trap_LAN_SaveCachedServers() {
+void trap_LAN_SaveCachedServers( void ) {
 	syscall( UI_LAN_SAVECACHEDSERVERS );
 }
 
-void trap_LAN_LoadCachedServers() {
+void trap_LAN_LoadCachedServers( void ) {
 	syscall( UI_LAN_LOADCACHEDSERVERS );
 }
 
@@ -306,6 +310,7 @@ void trap_SetCDKey( char *buf ) {
 	syscall( UI_SET_CDKEY, buf );
 }
 
+#ifndef BUILD_GAME_STATIC
 int trap_PC_AddGlobalDefine( char *define ) {
 	return syscall( UI_PC_ADD_GLOBAL_DEFINE, define );
 }
@@ -325,6 +330,7 @@ int trap_PC_ReadToken( int handle, pc_token_t *pc_token ) {
 int trap_PC_SourceFileAndLine( int handle, char *filename, int *line ) {
 	return syscall( UI_PC_SOURCE_FILE_AND_LINE, handle, filename, line );
 }
+#endif
 
 void trap_S_StopBackgroundTrack( void ) {
 	syscall( UI_S_STOPBACKGROUNDTRACK );
