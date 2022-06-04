@@ -288,24 +288,13 @@ jobs:
 
       - name: Create binary archives
         run: |
-          7z a -r baseq3a-full-x86_64.zip         ./macos-x86_64/*
-          7z a -r baseq3a-full-x86_64.zip         ./linux-x86_64/*
-          7z a -r baseq3a-full-x86_64.zip         ./windows-mingw-x86_64/*
-          7z a -r baseq3a-full-x86_64.zip         ./windows-msvc-x86_64/*
-          7z a -r baseq3a-full-x86_64.zip         ./windows-msvc-arm64/*
-          7z a -r baseq3a-full-x86_64.zip         ./qvms-bytecode/*
+          7z a -r multigame-full-x86_64.zip         ./macos-x86_64/*
+          7z a -r multigame-full-x86_64.zip         ./linux-x86_64/*
+          7z a -r multigame-full-x86_64.zip         ./windows-mingw-x86_64/*
+          7z a -r multigame-full-x86_64.zip         ./windows-msvc-x86_64/*
+          7z a -r multigame-full-x86_64.zip         ./windows-msvc-arm64/*
+          7z a -r multigame-full-x86_64.zip         ./qvms-bytecode/*
           cp      ./qvms-bytecode/*.pk3           ./xxx-multigame.pk3
-#         7z a -r baseq3a-qvms.zip              ./qvms-bytecode/*
-#         7z a -r baseq3a-linux-x86.zip           ./linux-x86/*
-#         7z a -r baseq3a-linux-x86_64.zip         ./linux-x86_64/*
-#         7z a -r baseq3a-windows-mingw-x86.zip    ./windows-mingw-x86/*
-#         7z a -r baseq3a-windows-mingw-x86_64.zip ./windows-mingw-x86_64/*
-#         7z a -r baseq3a-windows-msvc-x86.zip     ./windows-msvc-x86/*
-#         7z a -r baseq3a-windows-msvc-x86_64.zip  ./windows-msvc-x86_64/*
-#         7z a -r baseq3a-windows-msvc-arm64.zip   ./windows-msvc-arm64/*
-#         7z a -r baseq3a-macos-x86_64.zip         ./macos-x86_64/*
-#         7z a -r q3lcc-linux-aarch64.zip  ./linux-aarch64/*
-#         7z a -r q3lcc-linux-armv7.zip    ./linux-armv7/*
 
       - name: Create latest build
         uses: ec-/action-automatic-releases@test
