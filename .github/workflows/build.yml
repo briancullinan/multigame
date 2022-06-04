@@ -294,7 +294,7 @@ jobs:
           7z a -r baseq3a-full-x86_64.zip         ./windows-msvc-x86_64/*
           7z a -r baseq3a-full-x86_64.zip         ./windows-msvc-arm64/*
           7z a -r baseq3a-full-x86_64.zip         ./qvms-bytecode/*
-          cp      ./qvms-bytecode/*.pk3           ./pak8a.pk3
+          cp      ./qvms-bytecode/*.pk3           ./xxx-multigame.pk3
 #         7z a -r baseq3a-qvms.zip              ./qvms-bytecode/*
 #         7z a -r baseq3a-linux-x86.zip           ./linux-x86/*
 #         7z a -r baseq3a-linux-x86_64.zip         ./linux-x86_64/*

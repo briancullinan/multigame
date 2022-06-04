@@ -607,11 +607,11 @@ distclean: clean
 pak8a.pk3: $(TARGET_QVMS)
 	$(echo_cmd) "ZIPPING $<"
 	$(Q)cd $(B)/$(MOD) && \
-		$(ZIP) ../../../pak8a.pk3 vm/*.qvm && \
-		$(ZIP) -u ../../../pak8a.pk3 vm/*.map && \
-		$(ZIP) -u ../../../pak8a.pk3 vm/*.jts
+		$(ZIP) ../../../xxx-multigame.pk3 vm/*.qvm && \
+		$(ZIP) -u ../../../xxx-multigame.pk3 vm/*.map && \
+		$(ZIP) -u ../../../xxx-multigame.pk3 vm/*.jts
 	$(Q)cd ../../assets/xxx-multigame.pk3dir && \
-		$(ZIP) -u ../build/linux/pak8a.pk3 ./*
+		$(ZIP) -u ../../build/linux/xxx-multigame.pk3 ./*
 
 
 #############################################################################
